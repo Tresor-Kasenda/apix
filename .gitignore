@@ -1,0 +1,30 @@
+# Build output
+bin/
+dist/
+
+# apix internal state
+.apix/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment overrides (keep templates, ignore secrets)
+env/*.local.yaml

@@ -1,0 +1,11 @@
+project: my-api
+base_url: http://localhost:8000/api
+timeout: 30
+current_env: dev
+headers:
+  Content-Type: application/json
+  Accept: application/json
+auth:
+  type: bearer
+  token_path: data.token
+  header_format: "Bearer ${TOKEN}"
