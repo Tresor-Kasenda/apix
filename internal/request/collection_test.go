@@ -78,7 +78,13 @@ func TestLoadRequestWithCapture(t *testing.T) {
 		"path: /login\n" +
 		"capture:\n" +
 		"  TOKEN: data.token\n" +
-		"  USER_ID: data.user.id\n"
+		"  USER_ID: data.user.id\n" +
+		"expect:\n" +
+		"  status:\n" +
+		"    eq: 200\n" +
+		"  body:\n" +
+		"    data.user.id:\n" +
+		"      eq: 42\n"
 	if err := os.WriteFile(filepath.Join("requests", "login.yaml"), []byte(yamlContent), 0o644); err != nil {
 		t.Fatalf("writing request file: %v", err)
 	}
@@ -94,6 +100,12 @@ func TestLoadRequestWithCapture(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.Capture, expected) {
 		t.Fatalf("expected capture=%v, got %v", expected, got.Capture)
+	}
+	if got.Expect == nil {
+		t.Fatalf("expected expect block to be parsed")
+	}
+	if got.Expect.Status["eq"] != 200 {
+		t.Fatalf("expected status.eq=200, got %v", got.Expect.Status["eq"])
 	}
 }
 

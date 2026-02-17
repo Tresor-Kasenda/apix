@@ -237,6 +237,58 @@ apix post /events -d '{"id": "${UUID}", "ts": "${TIMESTAMP}"}'
 apix get /users/${USER_ID} -V "USER_ID=42"
 ```
 
+## Testing With Assertions
+
+Define an `expect` block in request YAML files, then run `apix test`.
+
+```yaml
+# requests/get-profile.yaml
+name: get-profile
+method: GET
+path: /users/${USER_ID}
+headers:
+  Authorization: "Bearer ${TOKEN}"
+expect:
+  status:
+    eq: 200
+  body:
+    data.user.id:
+      is_number: true
+    data.user.name:
+      contains: "Alice"
+  headers:
+    Content-Type:
+      contains: application/json
+  response_time:
+    lte: 500
+```
+
+Supported operators:
+- `exists`
+- `eq`
+- `contains`
+- `is_number`
+- `is_string`
+- `is_array`
+- `is_bool`
+- `is_null`
+- `gt`
+- `gte`
+- `lt`
+- `lte`
+- `length`
+
+```bash
+# Run all requests with an expect block in requests/
+apix test
+
+# Run one request test
+apix test get-profile
+
+# Run tests from a custom directory
+apix test --dir tests/
+```
+
 ## Command Reference
 
 | Command                  | Description                        |
@@ -258,6 +310,7 @@ apix get /users/${USER_ID} -V "USER_ID=42"
 | `apix save <name>`       | Save last request                  |
 | `apix run <name>`        | Run saved request                  |
 | `apix chain <req1> <req2> [...]` | Run saved requests sequentially with variable capture |
+| `apix test [name]`       | Run request assertions (`--dir` for custom folder) |
 | `apix list`              | List saved requests                |
 | `apix show <name>`       | Show a saved request YAML          |
 | `apix rename <old> <new>`| Rename a saved request             |
@@ -270,7 +323,8 @@ apix get /users/${USER_ID} -V "USER_ID=42"
 | `--header`        | `-H`  | Add header (key:value)          |
 | `--query`         | `-q`  | Add query param (key=value)     |
 | `--var`           | `-V`  | Set variable (key=value)        |
-| `--env`           |       | Use a specific environment for `run`/`chain` only |
+| `--env`           |       | Use a specific environment for `run`/`chain`/`test` only |
+| `--dir`           |       | Use a custom directory for `apix test` |
 | `--data`          | `-d`  | Request body (JSON string)      |
 | `--file`          | `-f`  | Request body from file          |
 | `--form`          |       | Multipart field (key=value or key=@file) |

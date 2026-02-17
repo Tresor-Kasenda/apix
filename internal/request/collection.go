@@ -70,7 +70,7 @@ func Load(name string) (*SavedRequest, error) {
 func LoadFromPath(path string) (*SavedRequest, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading request file %q: %w", path, err)
 	}
 
 	var req SavedRequest

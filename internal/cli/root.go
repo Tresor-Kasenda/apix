@@ -49,6 +49,7 @@ func rootCmd() *cobra.Command {
 		newSaveCmd(),
 		newRunCmd(),
 		newChainCmd(),
+		newTestCmd(),
 		newListCmd(),
 		newShowCmd(),
 		newRenameCmd(),
@@ -245,6 +246,14 @@ func executeSavedRequestWithResponse(name string, baseOpts ExecuteOptions) (*api
 	saved, err := request.Load(name)
 	if err != nil {
 		return nil, fmt.Errorf("loading saved request %q: %w", name, err)
+	}
+
+	return executeSavedDefinitionWithResponse(name, saved, baseOpts)
+}
+
+func executeSavedDefinitionWithResponse(name string, saved *request.SavedRequest, baseOpts ExecuteOptions) (*apixhttp.Response, error) {
+	if saved == nil {
+		return nil, fmt.Errorf("saved request %q is nil", name)
 	}
 
 	opts := baseOpts
