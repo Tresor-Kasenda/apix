@@ -49,6 +49,8 @@ func rootCmd() *cobra.Command {
 		newEnvCmd(),
 		newHistoryCmd(),
 		newConfigCmd(),
+		newImportCmd(),
+		newExportCmd(),
 		newSaveCmd(),
 		newRunCmd(),
 		newChainCmd(),

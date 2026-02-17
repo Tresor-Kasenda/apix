@@ -310,6 +310,32 @@ apix config show
 History is stored in `.apix/history.jsonl`.
 Standard status output now includes response duration and body size.
 
+## Import / Export
+
+Import from external tools/formats:
+
+```bash
+# Import from Postman collection JSON
+apix import postman collection.json
+
+# Import from Insomnia export JSON
+apix import insomnia insomnia-export.json
+
+# Import from a curl command
+apix import curl "curl -X POST https://api.example.com/login -H 'Content-Type: application/json' -d '{\"email\":\"test@test.com\"}'"
+```
+
+Export to external formats:
+
+```bash
+# Export one saved request as curl
+apix export curl login
+
+# Export all saved requests as Postman collection JSON
+apix export postman
+apix export postman --output postman-collection.json
+```
+
 ## Command Reference
 
 | Command                  | Description                        |
@@ -334,6 +360,11 @@ Standard status output now includes response duration and body size.
 | `apix test [name]`       | Run request assertions (`--dir` for custom folder) |
 | `apix history`           | Show request execution history (`--limit`, `--clear`) |
 | `apix config show`       | Show merged active configuration |
+| `apix import postman <file>` | Import a Postman collection |
+| `apix import insomnia <file>` | Import an Insomnia export |
+| `apix import curl "<cmd>"` | Import one curl command |
+| `apix export curl <name>` | Export one saved request as curl |
+| `apix export postman`    | Export all saved requests as Postman JSON |
 | `apix list`              | List saved requests                |
 | `apix show <name>`       | Show a saved request YAML          |
 | `apix rename <old> <new>`| Rename a saved request             |

@@ -1,0 +1,20 @@
+{
+  "resources": [
+    {
+      "_id": "req_1",
+      "_type": "request",
+      "name": "Login",
+      "method": "POST",
+      "url": "https://api.example.com/login?source=mobile",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "parameters": [
+        { "name": "version", "value": "v1" }
+      ],
+      "body": {
+        "text": "{\"email\":\"user@example.com\",\"password\":\"secret\"}"
+      }
+    }
+  ]
+}
