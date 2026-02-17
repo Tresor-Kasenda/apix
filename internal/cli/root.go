@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -38,6 +41,8 @@ func rootCmd() *cobra.Command {
 		newPutCmd(),
 		newPatchCmd(),
 		newDeleteCmd(),
+		newHeadCmd(),
+		newOptionsCmd(),
 		newInitCmd(),
 		newEnvCmd(),
 		newSaveCmd(),
@@ -48,22 +53,39 @@ func rootCmd() *cobra.Command {
 }
 
 type ExecuteOptions struct {
-	Headers  map[string]string
-	Query    map[string]string
-	Vars     map[string]string
-	Body     string
-	BodyFile string
-	Raw      bool
-	Verbose  bool
+	Headers    map[string]string
+	Query      map[string]string
+	Vars       map[string]string
+	Body       string
+	BodyFile   string
+	Form       []apixhttp.FormField
+	URLEncoded []apixhttp.FormField
+
+	Raw         bool
+	Verbose     bool
+	HeadersOnly bool
+	BodyOnly    bool
+	Silent      bool
+	OutputFile  string
+
+	Timeout  time.Duration
+	NoFollow bool
 }
 
 func executeFromOptions(method, path string, opts ExecuteOptions) error {
+	if err := validateDisplayModes(opts); err != nil {
+		return err
+	}
+	if err := validateBodyModes(opts); err != nil {
+		return err
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
-	url := buildURL(cfg.BaseURL, path)
+	urlStr := buildURL(cfg.BaseURL, path)
 
 	headers := make(map[string]string)
 	for k, v := range cfg.Headers {
@@ -83,7 +105,7 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 
 	vars := request.BuildVariableMap(cfg.Variables, cfg.Auth.Token, opts.Vars)
 
-	url = request.ResolveVariables(url, vars)
+	urlStr = request.ResolveVariables(urlStr, vars)
 	for k, v := range headers {
 		headers[k] = request.ResolveVariables(v, vars)
 	}
@@ -93,24 +115,27 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		query[k] = request.ResolveVariables(v, vars)
 	}
 
-	var bodyReader io.Reader
-	var bodyStr string
-	if opts.BodyFile != "" {
-		data, err := os.ReadFile(opts.BodyFile)
-		if err != nil {
-			return fmt.Errorf("reading body file: %w", err)
-		}
-		bodyStr = request.ResolveVariables(string(data), vars)
-		bodyReader = strings.NewReader(bodyStr)
-	} else if opts.Body != "" {
-		bodyStr = request.ResolveVariables(opts.Body, vars)
-		bodyReader = strings.NewReader(bodyStr)
+	bodyReader, bodyStr, contentType, err := buildRequestBody(opts, vars)
+	if err != nil {
+		return err
+	}
+	if contentType != "" && !hasHeader(opts.Headers, "Content-Type") {
+		headers["Content-Type"] = contentType
 	}
 
-	client := apixhttp.NewClient(time.Duration(cfg.Timeout) * time.Second)
+	timeout := time.Duration(cfg.Timeout) * time.Second
+	if opts.Timeout > 0 {
+		timeout = opts.Timeout
+	}
+
+	client := apixhttp.NewClientWithConfig(apixhttp.ClientConfig{
+		Timeout:         timeout,
+		FollowRedirects: !opts.NoFollow,
+	})
+
 	resp, err := client.Send(apixhttp.RequestOptions{
 		Method:  method,
-		URL:     url,
+		URL:     urlStr,
 		Headers: headers,
 		Query:   query,
 		Body:    bodyReader,
@@ -119,15 +144,31 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		return err
 	}
 
-	output.PrintStatus(method, path, resp.StatusCode, resp.Status, resp.Duration)
-	if opts.Verbose {
+	if err := writeOutputFile(opts.OutputFile, resp.Body); err != nil {
+		return err
+	}
+
+	shouldPrintStatus := !opts.Silent && !opts.BodyOnly
+	shouldPrintHeaders := !opts.Silent && (opts.HeadersOnly || opts.Verbose || strings.EqualFold(method, "HEAD"))
+	shouldPrintBody := !opts.HeadersOnly && !strings.EqualFold(method, "HEAD") && opts.OutputFile == ""
+
+	if shouldPrintStatus {
+		output.PrintStatus(method, path, resp.StatusCode, resp.Status, resp.Duration)
+	}
+	if shouldPrintHeaders {
 		output.PrintHeaders(resp.Headers)
 	}
-	output.PrintBody(resp.Body, opts.Raw)
+	if shouldPrintBody {
+		if opts.Silent || opts.BodyOnly {
+			output.PrintBodyRaw(resp.Body)
+		} else {
+			output.PrintBody(resp.Body, opts.Raw)
+		}
+	}
 
 	if cfg.Auth.TokenPath != "" {
-		if token, err := resp.ExtractField(cfg.Auth.TokenPath); err == nil && token != "" {
-			if saveErr := config.SaveToken(token); saveErr == nil {
+		if token, tokenErr := resp.ExtractField(cfg.Auth.TokenPath); tokenErr == nil && token != "" {
+			if saveErr := config.SaveToken(token); saveErr == nil && !opts.Silent && !opts.BodyOnly && !opts.HeadersOnly {
 				output.PrintTokenCaptured()
 			}
 		}
@@ -150,22 +191,52 @@ func executeRequest(cmd *cobra.Command, method string, args []string) error {
 	headerFlags, _ := cmd.Flags().GetStringSlice("header")
 	queryFlags, _ := cmd.Flags().GetStringSlice("query")
 	varFlags, _ := cmd.Flags().GetStringSlice("var")
+	formFlags, _ := cmd.Flags().GetStringSlice("form")
+	urlencodedFlags, _ := cmd.Flags().GetStringSlice("urlencoded")
+
+	formFields, err := parseFieldSlice(formFlags)
+	if err != nil {
+		return err
+	}
+	urlencodedFields, err := parseFieldSlice(urlencodedFlags)
+	if err != nil {
+		return err
+	}
+
+	timeoutSeconds, _ := cmd.Flags().GetInt("timeout")
+	noFollow, _ := cmd.Flags().GetBool("no-follow")
+	outputFile, _ := cmd.Flags().GetString("output")
 	raw, _ := cmd.Flags().GetBool("raw")
 	verbose, _ := cmd.Flags().GetBool("verbose")
+	headersOnly, _ := cmd.Flags().GetBool("headers-only")
+	bodyOnly, _ := cmd.Flags().GetBool("body-only")
+	silent, _ := cmd.Flags().GetBool("silent")
 
 	opts := ExecuteOptions{
-		Headers: parseKeyValueSlice(headerFlags, ":"),
-		Query:   parseKeyValueSlice(queryFlags, "="),
-		Vars:    parseKeyValueSlice(varFlags, "="),
-		Raw:     raw,
-		Verbose: verbose,
+		Headers:     parseKeyValueSlice(headerFlags, ":"),
+		Query:       parseQueryFlags(queryFlags),
+		Vars:        parseKeyValueSlice(varFlags, "="),
+		Form:        formFields,
+		URLEncoded:  urlencodedFields,
+		Raw:         raw,
+		Verbose:     verbose,
+		HeadersOnly: headersOnly,
+		BodyOnly:    bodyOnly,
+		Silent:      silent,
+		OutputFile:  outputFile,
+		NoFollow:    noFollow,
+		Timeout:     time.Duration(timeoutSeconds) * time.Second,
 	}
 
-	if cmd.Flags().Lookup("data") != nil {
+	if flag := cmd.Flags().Lookup("data"); flag != nil && flag.Changed {
 		opts.Body, _ = cmd.Flags().GetString("data")
 	}
-	if cmd.Flags().Lookup("file") != nil {
+	if flag := cmd.Flags().Lookup("file"); flag != nil && flag.Changed {
 		opts.BodyFile, _ = cmd.Flags().GetString("file")
+	}
+
+	if strings.EqualFold(method, "HEAD") && !opts.BodyOnly && !opts.Silent {
+		opts.HeadersOnly = true
 	}
 
 	return executeFromOptions(method, path, opts)
@@ -173,15 +244,171 @@ func executeRequest(cmd *cobra.Command, method string, args []string) error {
 
 func addCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceP("header", "H", nil, "Additional headers (key:value)")
-	cmd.Flags().StringSliceP("query", "q", nil, "Query parameters (key=value)")
+	cmd.Flags().StringSliceP("query", "q", nil, "Query parameters (key=value or key1=v1&key2=v2)")
 	cmd.Flags().StringSliceP("var", "V", nil, "Variables (key=value)")
+	addExecutionFlags(cmd)
+}
+
+func addExecutionFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("raw", false, "Print raw response body without formatting")
 	cmd.Flags().BoolP("verbose", "v", false, "Show response headers")
+	cmd.Flags().Bool("headers-only", false, "Print status and response headers only")
+	cmd.Flags().Bool("body-only", false, "Print response body only")
+	cmd.Flags().BoolP("silent", "s", false, "Print only the response body")
+	cmd.Flags().StringP("output", "o", "", "Write response body to a file")
+	cmd.Flags().IntP("timeout", "t", 0, "Request timeout in seconds (overrides config)")
+	cmd.Flags().Bool("no-follow", false, "Do not follow redirects")
 }
 
 func addBodyFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("data", "d", "", "Request body as JSON string")
 	cmd.Flags().StringP("file", "f", "", "Read request body from file")
+	cmd.Flags().StringSlice("form", nil, "Multipart form field (key=value or key=@file)")
+	cmd.Flags().StringSlice("urlencoded", nil, "URL-encoded field (key=value)")
+}
+
+func buildRequestBody(opts ExecuteOptions, vars map[string]string) (io.Reader, string, string, error) {
+	modeCount := 0
+	if opts.Body != "" {
+		modeCount++
+	}
+	if opts.BodyFile != "" {
+		modeCount++
+	}
+	if len(opts.Form) > 0 {
+		modeCount++
+	}
+	if len(opts.URLEncoded) > 0 {
+		modeCount++
+	}
+	if modeCount > 1 {
+		return nil, "", "", fmt.Errorf("--data, --file, --form, and --urlencoded are mutually exclusive")
+	}
+
+	if opts.BodyFile != "" {
+		data, err := os.ReadFile(opts.BodyFile)
+		if err != nil {
+			return nil, "", "", fmt.Errorf("reading body file: %w", err)
+		}
+		bodyStr := request.ResolveVariables(string(data), vars)
+		return strings.NewReader(bodyStr), bodyStr, "", nil
+	}
+
+	if opts.Body != "" {
+		bodyStr := request.ResolveVariables(opts.Body, vars)
+		return strings.NewReader(bodyStr), bodyStr, "", nil
+	}
+
+	if len(opts.Form) > 0 {
+		resolved := resolveFormFields(opts.Form, vars)
+		bodyBytes, contentType, err := apixhttp.BuildMultipartForm(resolved)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return bytes.NewReader(bodyBytes), summarizeFormFields(resolved), contentType, nil
+	}
+
+	if len(opts.URLEncoded) > 0 {
+		resolved := resolveFormFields(opts.URLEncoded, vars)
+		encoded, contentType, err := apixhttp.BuildURLEncodedForm(resolved)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return strings.NewReader(encoded), encoded, contentType, nil
+	}
+
+	return nil, "", "", nil
+}
+
+func resolveFormFields(fields []apixhttp.FormField, vars map[string]string) []apixhttp.FormField {
+	resolved := make([]apixhttp.FormField, 0, len(fields))
+	for _, f := range fields {
+		resolved = append(resolved, apixhttp.FormField{
+			Key:   request.ResolveVariables(f.Key, vars),
+			Value: request.ResolveVariables(f.Value, vars),
+		})
+	}
+	return resolved
+}
+
+func summarizeFormFields(fields []apixhttp.FormField) string {
+	if len(fields) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(fields))
+	for _, f := range fields {
+		parts = append(parts, fmt.Sprintf("%s=%s", f.Key, f.Value))
+	}
+	return strings.Join(parts, "&")
+}
+
+func validateDisplayModes(opts ExecuteOptions) error {
+	if opts.HeadersOnly && opts.BodyOnly {
+		return fmt.Errorf("--headers-only and --body-only cannot be used together")
+	}
+	return nil
+}
+
+func validateBodyModes(opts ExecuteOptions) error {
+	modeCount := 0
+	if opts.Body != "" {
+		modeCount++
+	}
+	if opts.BodyFile != "" {
+		modeCount++
+	}
+	if len(opts.Form) > 0 {
+		modeCount++
+	}
+	if len(opts.URLEncoded) > 0 {
+		modeCount++
+	}
+	if modeCount > 1 {
+		return fmt.Errorf("--data, --file, --form, and --urlencoded are mutually exclusive")
+	}
+	return nil
+}
+
+func parseFieldSlice(items []string) ([]apixhttp.FormField, error) {
+	fields := make([]apixhttp.FormField, 0, len(items))
+	for _, item := range items {
+		parts := strings.SplitN(item, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid field %q (expected key=value)", item)
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if key == "" {
+			return nil, fmt.Errorf("invalid field %q (empty key)", item)
+		}
+		fields = append(fields, apixhttp.FormField{Key: key, Value: value})
+	}
+	return fields, nil
+}
+
+func writeOutputFile(path string, body []byte) error {
+	if path == "" {
+		return nil
+	}
+	dir := filepath.Dir(path)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("creating output directory %q: %w", dir, err)
+		}
+	}
+	if err := os.WriteFile(path, body, 0o644); err != nil {
+		return fmt.Errorf("writing output file %q: %w", path, err)
+	}
+	return nil
+}
+
+func hasHeader(headers map[string]string, key string) bool {
+	for k := range headers {
+		if strings.EqualFold(k, key) {
+			return true
+		}
+	}
+	return false
 }
 
 func buildURL(base, path string) string {
@@ -193,6 +420,31 @@ func buildURL(base, path string) string {
 		path = "/" + path
 	}
 	return base + path
+}
+
+func parseQueryFlags(items []string) map[string]string {
+	result := make(map[string]string)
+	for _, item := range items {
+		if strings.Contains(item, "&") {
+			values, err := url.ParseQuery(item)
+			if err == nil {
+				for k, vals := range values {
+					if len(vals) == 0 {
+						result[k] = ""
+						continue
+					}
+					result[k] = vals[len(vals)-1]
+				}
+				continue
+			}
+		}
+
+		parts := strings.SplitN(item, "=", 2)
+		if len(parts) == 2 {
+			result[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		}
+	}
+	return result
 }
 
 func parseKeyValueSlice(items []string, sep string) map[string]string {

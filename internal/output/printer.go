@@ -71,6 +71,13 @@ func PrintBody(body []byte, raw bool) {
 	fmt.Println()
 }
 
+func PrintBodyRaw(body []byte) {
+	if len(body) == 0 {
+		return
+	}
+	fmt.Print(string(body))
+}
+
 func PrintTokenCaptured() {
 	success.Println("  ✓ Token captured and saved")
 	fmt.Println()

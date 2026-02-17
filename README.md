@@ -31,6 +31,8 @@ apix get /users
 apix post /login -d '{"email": "user@example.com", "password": "secret"}'
 apix put /users/1 -d '{"name": "Updated Name"}'
 apix delete /users/1
+apix head /users
+apix options /users
 
 # Use verbose mode to see headers
 apix get /users -v
@@ -38,13 +40,30 @@ apix get /users -v
 # Add custom headers and query params
 apix get /search -q "term=golang" -H "X-Custom:value"
 
+# Send form payloads
+apix post /upload --form "type=avatar" --form "file=@./photo.jpg"
+apix post /login --urlencoded "email=user@example.com" --urlencoded "password=secret"
+
 # Use variables
 apix get /users/${USER_ID} -V "USER_ID=42"
+
+# Environment workflow
+apix env show
+apix env copy dev staging
+apix env delete staging --force
 ```
 
 ## Project Configuration
 
-Run `apix init` to create an `apix.yaml` in your project:
+Run `apix init` to create an `apix.yaml` in your project.
+The command prompts for:
+- project name (default: current directory name)
+- base URL (default: framework-based suggestion)
+- auth type (`none`, `bearer`, `basic`, `api_key`, `custom`)
+
+`apix init` also ensures `.apix/` is present in `.gitignore`.
+
+Example generated config:
 
 ```yaml
 project: my-api
@@ -76,7 +95,13 @@ apix env use staging
 apix env list
 
 # Show environment config
+apix env show
 apix env show dev
+
+# Copy and delete environments
+apix env copy dev staging
+apix env delete staging
+apix env delete staging --force
 ```
 
 Environment files live in `env/<name>.yaml`:
@@ -147,10 +172,14 @@ apix get /users/${USER_ID} -V "USER_ID=42"
 | `apix put <path>`        | Send PUT request                   |
 | `apix patch <path>`      | Send PATCH request                 |
 | `apix delete <path>`     | Send DELETE request                |
+| `apix head <path>`       | Send HEAD request                  |
+| `apix options <path>`    | Send OPTIONS request               |
 | `apix env use <name>`    | Switch environment                 |
 | `apix env list`          | List environments                  |
-| `apix env show <name>`   | Show environment config            |
+| `apix env show [name]`   | Show active or named environment   |
 | `apix env create <name>` | Create new environment             |
+| `apix env copy <src> <dest>` | Copy an environment            |
+| `apix env delete <name>` | Delete an environment              |
 | `apix save <name>`       | Save last request                  |
 | `apix run <name>`        | Run saved request                  |
 
@@ -163,8 +192,16 @@ apix get /users/${USER_ID} -V "USER_ID=42"
 | `--var`           | `-V`  | Set variable (key=value)        |
 | `--data`          | `-d`  | Request body (JSON string)      |
 | `--file`          | `-f`  | Request body from file          |
+| `--form`          |       | Multipart field (key=value or key=@file) |
+| `--urlencoded`    |       | URL-encoded field (key=value)   |
 | `--verbose`       | `-v`  | Show response headers           |
 | `--raw`           |       | Print raw response body         |
+| `--headers-only`  |       | Print only status + headers     |
+| `--body-only`     |       | Print only response body        |
+| `--silent`        | `-s`  | Print only body (script mode)   |
+| `--output`        | `-o`  | Write response body to file     |
+| `--timeout`       | `-t`  | Override timeout (seconds)      |
+| `--no-follow`     |       | Disable redirect following      |
 
 ## Cross-Platform Build
 

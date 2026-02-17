@@ -15,6 +15,11 @@ type Client struct {
 	httpClient Doer
 }
 
+type ClientConfig struct {
+	Timeout         time.Duration
+	FollowRedirects bool
+}
+
 type RequestOptions struct {
 	Method  string
 	URL     string
@@ -24,11 +29,24 @@ type RequestOptions struct {
 }
 
 func NewClient(timeout time.Duration) *Client {
-	return &Client{
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
+	return NewClientWithConfig(ClientConfig{
+		Timeout:         timeout,
+		FollowRedirects: true,
+	})
+}
+
+func NewClientWithConfig(cfg ClientConfig) *Client {
+	httpClient := &http.Client{
+		Timeout: cfg.Timeout,
 	}
+
+	if !cfg.FollowRedirects {
+		httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+
+	return &Client{httpClient: httpClient}
 }
 
 func NewClientWithDoer(d Doer) *Client {

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Tresor-Kasend/apix/internal/config"
@@ -13,6 +14,14 @@ import (
 	"github.com/Tresor-Kasend/apix/internal/request"
 	"github.com/spf13/cobra"
 )
+
+var allowedAuthTypes = map[string]bool{
+	"none":    true,
+	"bearer":  true,
+	"basic":   true,
+	"api_key": true,
+	"custom":  true,
+}
 
 func newInitCmd() *cobra.Command {
 	return &cobra.Command{
@@ -39,7 +48,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		defaultURL = fmt.Sprintf("http://localhost:%d/api", result.Framework.DefaultPort)
 	}
 
+	defaultProject := detectProjectName()
+	projectName := promptInput("Project name", defaultProject)
 	baseURL := promptInput("Base URL", defaultURL)
+	authType := promptAuthType("Auth type", "bearer")
 
 	// Create directories.
 	dirs := []string{"requests", "env", ".apix"}
@@ -49,8 +61,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if err := env.EnsureGitignoreEntry(".apix/"); err != nil {
+		return err
+	}
+
 	// Write apix.yaml.
-	if err := config.WriteDefault(baseURL); err != nil {
+	if err := config.WriteDefault(projectName, baseURL, authType); err != nil {
 		return err
 	}
 	output.PrintSuccess("Created apix.yaml")
@@ -81,6 +97,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func detectProjectName() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "my-api"
+	}
+	name := strings.TrimSpace(filepath.Base(wd))
+	if name == "" || name == "." || name == string(filepath.Separator) {
+		return "my-api"
+	}
+	return name
+}
+
 func promptInput(label, defaultVal string) string {
 	fmt.Printf("  %s [%s]: ", label, defaultVal)
 	reader := bufio.NewReader(os.Stdin)
@@ -90,4 +118,14 @@ func promptInput(label, defaultVal string) string {
 		return defaultVal
 	}
 	return input
+}
+
+func promptAuthType(label, defaultVal string) string {
+	for {
+		value := strings.ToLower(promptInput(label+" (none|bearer|basic|api_key|custom)", defaultVal))
+		if allowedAuthTypes[value] {
+			return value
+		}
+		output.PrintInfo("Invalid auth type. Allowed: none, bearer, basic, api_key, custom")
+	}
 }

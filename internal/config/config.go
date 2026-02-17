@@ -135,9 +135,16 @@ func Exists() bool {
 	return err == nil
 }
 
-func WriteDefault(baseURL string) error {
+func WriteDefault(projectName, baseURL, authType string) error {
+	if projectName == "" {
+		projectName = "my-api"
+	}
+	if authType == "" {
+		authType = "bearer"
+	}
+
 	cfg := map[string]interface{}{
-		"project":     "my-api",
+		"project":     projectName,
 		"base_url":    baseURL,
 		"timeout":     30,
 		"current_env": "dev",
@@ -145,11 +152,7 @@ func WriteDefault(baseURL string) error {
 			"Content-Type": "application/json",
 			"Accept":       "application/json",
 		},
-		"auth": map[string]interface{}{
-			"type":          "bearer",
-			"token_path":    "data.token",
-			"header_format": "Bearer ${TOKEN}",
-		},
+		"auth": defaultAuthConfig(authType),
 	}
 
 	data, err := yaml.Marshal(cfg)
@@ -161,4 +164,33 @@ func WriteDefault(baseURL string) error {
 		return fmt.Errorf("writing apix.yaml: %w", err)
 	}
 	return nil
+}
+
+func defaultAuthConfig(authType string) map[string]interface{} {
+	switch authType {
+	case "none":
+		return map[string]interface{}{
+			"type": "none",
+		}
+	case "basic":
+		return map[string]interface{}{
+			"type": "basic",
+		}
+	case "api_key":
+		return map[string]interface{}{
+			"type": "api_key",
+		}
+	case "custom":
+		return map[string]interface{}{
+			"type": "custom",
+		}
+	case "bearer":
+		fallthrough
+	default:
+		return map[string]interface{}{
+			"type":          "bearer",
+			"token_path":    "data.token",
+			"header_format": "Bearer ${TOKEN}",
+		}
+	}
 }
