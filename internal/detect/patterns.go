@@ -55,9 +55,45 @@ var fiberPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\.(?P<method>Get|Post|Put|Patch|Delete)\(\s*"(?P<path>[^"]+)"`),
 }
 
-// Laravel
+// Laravel / Lumen
 var laravelPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`Route::(?P<method>get|post|put|patch|delete)\(\s*['"](?P<path>[^'"]+)['"]`),
+	regexp.MustCompile(`\$router->(?P<method>get|post|put|patch|delete)\(\s*['"](?P<path>[^'"]+)['"]`),
+}
+
+// Symfony (PHP 8 attributes + annotations)
+var symfonyPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`#\[Route\(\s*['"](?P<path>[^'"]+)['"].*methods:\s*\[['"](?P<method>[A-Z]+)['"]`),
+	regexp.MustCompile(`@Route\(\s*["'](?P<path>[^"']+)["'].*methods\s*=\s*\{["'](?P<method>[A-Z]+)["']`),
+	regexp.MustCompile(`#\[Route\(\s*['"](?P<path>[^'"]+)['"]`),
+}
+
+// Slim
+var slimPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\$app->(?P<method>get|post|put|patch|delete)\(\s*['"](?P<path>[^'"]+)['"]`),
+	regexp.MustCompile(`\$group->(?P<method>get|post|put|patch|delete)\(\s*['"](?P<path>[^'"]+)['"]`),
+}
+
+// CakePHP
+var cakePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\$routes->connect\(\s*['"](?P<path>[^'"]+)['"]`),
+	regexp.MustCompile(`Router::connect\(\s*['"](?P<path>[^'"]+)['"]`),
+}
+
+// CodeIgniter
+var codeigniterPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\$routes->(?P<method>get|post|put|patch|delete)\(\s*['"](?P<path>[^'"]+)['"]`),
+}
+
+// Yii
+var yiiPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`['"](?P<method>GET|POST|PUT|PATCH|DELETE)\s+(?P<path>[^'"]+)['"]`),
+}
+
+// Laminas / Mezzio
+var laminasPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`->route\(\s*['"](?P<path>[^'"]+)['"]`),
+	regexp.MustCompile(`\$app->(?P<method>get|post|put|patch|delete)\(\s*['"](?P<path>[^'"]+)['"]`),
 }
 
 // Rails
@@ -103,6 +139,18 @@ func scanConfigFor(fw *Framework) scanConfig {
 		return scanConfig{fileExts: []string{".go"}, patterns: fiberPatterns}
 	case "Laravel":
 		return scanConfig{files: []string{"routes/api.php", "routes/web.php"}, patterns: laravelPatterns}
+	case "Symfony":
+		return scanConfig{fileExts: []string{".php"}, patterns: symfonyPatterns}
+	case "Slim":
+		return scanConfig{fileExts: []string{".php"}, files: []string{"routes.php", "src/routes.php"}, patterns: slimPatterns}
+	case "CakePHP":
+		return scanConfig{files: []string{"config/routes.php"}, fileExts: []string{".php"}, patterns: cakePatterns}
+	case "CodeIgniter":
+		return scanConfig{files: []string{"app/Config/Routes.php"}, patterns: codeigniterPatterns}
+	case "Yii":
+		return scanConfig{fileExts: []string{".php"}, patterns: yiiPatterns}
+	case "Laminas":
+		return scanConfig{fileExts: []string{".php"}, files: []string{"config/routes.php"}, patterns: laminasPatterns}
 	case "Rails":
 		return scanConfig{files: []string{"config/routes.rb"}, patterns: railsPatterns}
 	case "Spring Boot":

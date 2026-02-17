@@ -7,10 +7,14 @@ before:
     - go mod tidy
 
 builds:
-  - main: ./cmd/apix
+  - id: apix
+    main: ./cmd/apix
     binary: apix
-    env:
-      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
     goos:
       - linux
       - darwin
@@ -18,18 +22,21 @@ builds:
     goarch:
       - amd64
       - arm64
-    ldflags:
-      - -s -w -X main.version={{.Version}}
 
 archives:
-  - format: tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - id: apix
+    format: tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     format_overrides:
       - goos: windows
         format: zip
+    files:
+      - README.md
+      - LICENSE
 
 checksum:
   name_template: "checksums.txt"
+  algorithm: sha256
 
 changelog:
   sort: asc
@@ -37,4 +44,11 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
-      - "^chore:"
+      - "^ci:"
+
+release:
+  github:
+    owner: ton-username
+    name: apix
+  draft: false
+  prerelease: auto

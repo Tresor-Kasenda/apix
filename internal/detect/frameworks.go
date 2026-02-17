@@ -150,7 +150,55 @@ var rules = []frameworkRule{
 		markerFiles: []string{"composer.json"},
 		contentCheck: &contentCheck{
 			files:      []string{"composer.json"},
-			substrings: []string{"laravel"},
+			substrings: []string{"laravel/framework", "laravel/lumen"},
+		},
+	},
+	{
+		framework:   Framework{"Symfony", "php", 8000},
+		markerFiles: []string{"composer.json"},
+		contentCheck: &contentCheck{
+			files:      []string{"composer.json"},
+			substrings: []string{"symfony/framework-bundle", "symfony/routing"},
+		},
+	},
+	{
+		framework:   Framework{"Slim", "php", 8080},
+		markerFiles: []string{"composer.json"},
+		contentCheck: &contentCheck{
+			files:      []string{"composer.json"},
+			substrings: []string{"slim/slim"},
+		},
+	},
+	{
+		framework:   Framework{"CakePHP", "php", 8765},
+		markerFiles: []string{"composer.json"},
+		contentCheck: &contentCheck{
+			files:      []string{"composer.json"},
+			substrings: []string{"cakephp/cakephp"},
+		},
+	},
+	{
+		framework:   Framework{"CodeIgniter", "php", 8080},
+		markerFiles: []string{"composer.json"},
+		contentCheck: &contentCheck{
+			files:      []string{"composer.json"},
+			substrings: []string{"codeigniter4/framework", "codeigniter4/appstarter"},
+		},
+	},
+	{
+		framework:   Framework{"Yii", "php", 8080},
+		markerFiles: []string{"composer.json"},
+		contentCheck: &contentCheck{
+			files:      []string{"composer.json"},
+			substrings: []string{"yiisoft/yii2", "yiisoft/yii-runner"},
+		},
+	},
+	{
+		framework:   Framework{"Laminas", "php", 8080},
+		markerFiles: []string{"composer.json"},
+		contentCheck: &contentCheck{
+			files:      []string{"composer.json"},
+			substrings: []string{"laminas/laminas-mvc", "laminas/laminas-mezzio"},
 		},
 	},
 }
