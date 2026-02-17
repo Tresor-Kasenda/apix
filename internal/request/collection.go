@@ -1,4 +1,3 @@
-// collection.go provides loading and saving of request YAML files.
 package request
 
 import (
@@ -10,7 +9,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// SavedRequest represents a saved HTTP request stored in requests/<name>.yaml.
 type SavedRequest struct {
 	Name    string            `yaml:"name"`
 	Method  string            `yaml:"method"`
@@ -20,7 +18,6 @@ type SavedRequest struct {
 	Body    string            `yaml:"body,omitempty"`
 }
 
-// Save writes a request to requests/<name>.yaml.
 func Save(name string, req SavedRequest) error {
 	if err := os.MkdirAll("requests", 0o755); err != nil {
 		return fmt.Errorf("creating requests directory: %w", err)
@@ -39,7 +36,6 @@ func Save(name string, req SavedRequest) error {
 	return nil
 }
 
-// Load reads a saved request from requests/<name>.yaml.
 func Load(name string) (*SavedRequest, error) {
 	path := filepath.Join("requests", name+".yaml")
 	data, err := os.ReadFile(path)
@@ -54,7 +50,6 @@ func Load(name string) (*SavedRequest, error) {
 	return &req, nil
 }
 
-// SaveLast persists the most recent request to .apix/last_request.yaml.
 func SaveLast(req SavedRequest) error {
 	if err := os.MkdirAll(".apix", 0o755); err != nil {
 		return fmt.Errorf("creating .apix directory: %w", err)
@@ -72,7 +67,6 @@ func SaveLast(req SavedRequest) error {
 	return nil
 }
 
-// LoadLast reads the most recently executed request from .apix/last_request.yaml.
 func LoadLast() (*SavedRequest, error) {
 	path := filepath.Join(".apix", "last_request.yaml")
 	data, err := os.ReadFile(path)
@@ -87,7 +81,6 @@ func LoadLast() (*SavedRequest, error) {
 	return &req, nil
 }
 
-// ListSaved returns the names of all saved requests.
 func ListSaved() ([]string, error) {
 	entries, err := os.ReadDir("requests")
 	if err != nil {

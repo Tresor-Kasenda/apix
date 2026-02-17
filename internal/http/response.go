@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-// Response wraps a parsed HTTP response with timing information.
 type Response struct {
 	StatusCode int
 	Status     string
@@ -19,7 +18,6 @@ type Response struct {
 	Duration   time.Duration
 }
 
-// ParseResponse reads an *http.Response into a Response, closing the body.
 func ParseResponse(resp *http.Response, duration time.Duration) (*Response, error) {
 	defer resp.Body.Close()
 
@@ -37,14 +35,11 @@ func ParseResponse(resp *http.Response, duration time.Duration) (*Response, erro
 	}, nil
 }
 
-// IsJSON reports whether the response body appears to be JSON.
 func (r *Response) IsJSON() bool {
 	ct := r.Headers.Get("Content-Type")
 	return strings.Contains(ct, "application/json") || json.Valid(r.Body)
 }
 
-// ExtractField navigates a dot-separated path (e.g. "data.token") through the
-// JSON body and returns the string value at that path.
 func (r *Response) ExtractField(path string) (string, error) {
 	if len(r.Body) == 0 {
 		return "", fmt.Errorf("empty response body")
@@ -77,7 +72,6 @@ func (r *Response) ExtractField(path string) (string, error) {
 	case bool:
 		return fmt.Sprintf("%v", v), nil
 	default:
-		// Marshal complex types back to JSON.
 		b, err := json.Marshal(v)
 		if err != nil {
 			return "", fmt.Errorf("extracting field %q: %w", path, err)

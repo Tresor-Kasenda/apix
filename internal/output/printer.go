@@ -1,4 +1,3 @@
-// Package output provides colored pretty-printing for HTTP responses.
 package output
 
 import (
@@ -21,7 +20,6 @@ var (
 	success = color.New(color.FgGreen)
 )
 
-// PrintStatus prints a colored HTTP status line with method, path, status code, and duration.
 func PrintStatus(method, path string, statusCode int, status string, duration time.Duration) {
 	c := statusColor(statusCode)
 	ms := float64(duration.Microseconds()) / 1000.0
@@ -31,7 +29,6 @@ func PrintStatus(method, path string, statusCode int, status string, duration ti
 	fmt.Println()
 }
 
-// PrintHeaders prints response headers in a formatted list.
 func PrintHeaders(headers map[string][]string) {
 	bold.Println("  Headers:")
 	keys := make([]string, 0, len(headers))
@@ -48,7 +45,6 @@ func PrintHeaders(headers map[string][]string) {
 	fmt.Println()
 }
 
-// PrintBody prints the response body, optionally pretty-printed as JSON.
 func PrintBody(body []byte, raw bool) {
 	if len(body) == 0 {
 		gray.Println("  (empty body)")
@@ -71,28 +67,23 @@ func PrintBody(body []byte, raw bool) {
 		}
 	}
 
-	// Not JSON or failed to pretty-print; print as-is.
 	fmt.Println("  " + string(body))
 	fmt.Println()
 }
 
-// PrintTokenCaptured prints a success message when a token is auto-captured.
 func PrintTokenCaptured() {
 	success.Println("  ✓ Token captured and saved")
 	fmt.Println()
 }
 
-// PrintError prints a red error message.
 func PrintError(err error) {
 	red.Fprintf(color.Error, "  Error: %s\n", err)
 }
 
-// PrintInfo prints an informational message.
 func PrintInfo(msg string) {
 	fmt.Printf("  %s\n", msg)
 }
 
-// PrintSuccess prints a green success message.
 func PrintSuccess(msg string) {
 	success.Printf("  ✓ %s\n", msg)
 }
@@ -109,7 +100,6 @@ func statusColor(code int) *color.Color {
 }
 
 func statusText(status string) string {
-	// net/http returns "200 OK"; extract just "OK" part.
 	parts := strings.SplitN(status, " ", 2)
 	if len(parts) == 2 {
 		return parts[1]

@@ -1,4 +1,3 @@
-// put.go defines the "apix put" command.
 package cli
 
 import "github.com/spf13/cobra"

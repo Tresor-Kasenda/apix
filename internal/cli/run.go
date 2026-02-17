@@ -1,4 +1,3 @@
-// run.go defines the "apix run" command for replaying saved requests.
 package cli
 
 import (
@@ -29,12 +28,12 @@ func newRunCmd() *cobra.Command {
 			flagVars := parseKeyValueSlice(varFlags, "=")
 
 			opts := ExecuteOptions{
-				Headers:  saved.Headers,
-				Query:    saved.Query,
-				Body:     saved.Body,
-				Vars:     flagVars,
-				Raw:      raw,
-				Verbose:  verbose,
+				Headers: saved.Headers,
+				Query:   saved.Query,
+				Body:    saved.Body,
+				Vars:    flagVars,
+				Raw:     raw,
+				Verbose: verbose,
 			}
 
 			return executeFromOptions(saved.Method, saved.Path, opts)

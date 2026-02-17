@@ -1,4 +1,3 @@
-// Package cli defines all cobra commands for the apix CLI.
 package cli
 
 import (
@@ -25,10 +24,10 @@ func Execute(v string) error {
 
 func rootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "apix",
-		Short:   "A modern CLI API tester",
-		Long:    "apix is a modern, framework-agnostic API testing tool for terminal-first developers.",
-		Version: version,
+		Use:           "apix",
+		Short:         "A modern CLI API tester",
+		Long:          "apix is a modern, framework-agnostic API testing tool for terminal-first developers.",
+		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -48,7 +47,6 @@ func rootCmd() *cobra.Command {
 	return cmd
 }
 
-// ExecuteOptions holds the parameters for executing an HTTP request.
 type ExecuteOptions struct {
 	Headers  map[string]string
 	Query    map[string]string
@@ -59,17 +57,14 @@ type ExecuteOptions struct {
 	Verbose  bool
 }
 
-// executeFromOptions is the shared core that all HTTP commands use.
 func executeFromOptions(method, path string, opts ExecuteOptions) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
-	// Build full URL.
 	url := buildURL(cfg.BaseURL, path)
 
-	// Merge headers: config defaults + request-specific.
 	headers := make(map[string]string)
 	for k, v := range cfg.Headers {
 		headers[k] = v
@@ -78,7 +73,6 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		headers[k] = v
 	}
 
-	// Add auth header.
 	if cfg.Auth.Type == "bearer" && cfg.Auth.Token != "" {
 		format := cfg.Auth.HeaderFormat
 		if format == "" {
@@ -87,7 +81,6 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		headers["Authorization"] = strings.ReplaceAll(format, "${TOKEN}", cfg.Auth.Token)
 	}
 
-	// Build variable map and resolve variables.
 	vars := request.BuildVariableMap(cfg.Variables, cfg.Auth.Token, opts.Vars)
 
 	url = request.ResolveVariables(url, vars)
@@ -95,13 +88,11 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		headers[k] = request.ResolveVariables(v, vars)
 	}
 
-	// Resolve query params.
 	query := make(map[string]string)
 	for k, v := range opts.Query {
 		query[k] = request.ResolveVariables(v, vars)
 	}
 
-	// Build body.
 	var bodyReader io.Reader
 	var bodyStr string
 	if opts.BodyFile != "" {
@@ -116,7 +107,6 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		bodyReader = strings.NewReader(bodyStr)
 	}
 
-	// Send request.
 	client := apixhttp.NewClient(time.Duration(cfg.Timeout) * time.Second)
 	resp, err := client.Send(apixhttp.RequestOptions{
 		Method:  method,
@@ -129,14 +119,12 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		return err
 	}
 
-	// Print response.
 	output.PrintStatus(method, path, resp.StatusCode, resp.Status, resp.Duration)
 	if opts.Verbose {
 		output.PrintHeaders(resp.Headers)
 	}
 	output.PrintBody(resp.Body, opts.Raw)
 
-	// Auto-capture token.
 	if cfg.Auth.TokenPath != "" {
 		if token, err := resp.ExtractField(cfg.Auth.TokenPath); err == nil && token != "" {
 			if saveErr := config.SaveToken(token); saveErr == nil {
@@ -145,7 +133,6 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		}
 	}
 
-	// Save as last request for `apix save`.
 	_ = request.SaveLast(request.SavedRequest{
 		Method:  method,
 		Path:    path,
@@ -157,7 +144,6 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 	return nil
 }
 
-// executeRequest parses cobra flags and delegates to executeFromOptions.
 func executeRequest(cmd *cobra.Command, method string, args []string) error {
 	path := args[0]
 
@@ -175,7 +161,6 @@ func executeRequest(cmd *cobra.Command, method string, args []string) error {
 		Verbose: verbose,
 	}
 
-	// Body flags (only present on POST/PUT/PATCH).
 	if cmd.Flags().Lookup("data") != nil {
 		opts.Body, _ = cmd.Flags().GetString("data")
 	}
@@ -186,7 +171,6 @@ func executeRequest(cmd *cobra.Command, method string, args []string) error {
 	return executeFromOptions(method, path, opts)
 }
 
-// addCommonFlags adds flags shared by all HTTP method commands.
 func addCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().StringSliceP("header", "H", nil, "Additional headers (key:value)")
 	cmd.Flags().StringSliceP("query", "q", nil, "Query parameters (key=value)")
@@ -195,13 +179,11 @@ func addCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP("verbose", "v", false, "Show response headers")
 }
 
-// addBodyFlags adds body-related flags for POST, PUT, and PATCH commands.
 func addBodyFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("data", "d", "", "Request body as JSON string")
 	cmd.Flags().StringP("file", "f", "", "Read request body from file")
 }
 
-// buildURL joins the base URL and path, handling slash deduplication.
 func buildURL(base, path string) string {
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 		return path
@@ -213,7 +195,6 @@ func buildURL(base, path string) string {
 	return base + path
 }
 
-// parseKeyValueSlice parses a slice of "key<sep>value" strings into a map.
 func parseKeyValueSlice(items []string, sep string) map[string]string {
 	result := make(map[string]string)
 	for _, item := range items {

@@ -1,4 +1,3 @@
-// Package env manages apix environment files (env/<name>.yaml).
 package env
 
 import (
@@ -10,7 +9,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// EnvConfig represents the contents of an environment file.
 type EnvConfig struct {
 	BaseURL   string            `yaml:"base_url,omitempty"`
 	Headers   map[string]string `yaml:"headers,omitempty"`
@@ -18,13 +16,11 @@ type EnvConfig struct {
 	Variables map[string]string `yaml:"variables,omitempty"`
 }
 
-// AuthOverride holds auth fields that can be overridden per environment.
 type AuthOverride struct {
 	Type  string `yaml:"type,omitempty"`
 	Token string `yaml:"token,omitempty"`
 }
 
-// Load reads and parses an environment file by name.
 func Load(name string) (*EnvConfig, error) {
 	path := filepath.Join("env", name+".yaml")
 	data, err := os.ReadFile(path)
@@ -39,7 +35,6 @@ func Load(name string) (*EnvConfig, error) {
 	return &cfg, nil
 }
 
-// List returns the names of all available environments.
 func List() ([]string, error) {
 	entries, err := os.ReadDir("env")
 	if err != nil {
@@ -62,7 +57,6 @@ func List() ([]string, error) {
 	return names, nil
 }
 
-// Create creates a new environment file with a scaffold template.
 func Create(name string) error {
 	if err := os.MkdirAll("env", 0o755); err != nil {
 		return fmt.Errorf("creating env directory: %w", err)
@@ -90,9 +84,7 @@ func Create(name string) error {
 	return nil
 }
 
-// SetActive updates the current_env field in apix.yaml.
 func SetActive(name string) error {
-	// Verify the environment exists.
 	path := filepath.Join("env", name+".yaml")
 	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("environment %q does not exist", name)
@@ -101,7 +93,6 @@ func SetActive(name string) error {
 	return updateApixYAMLField("current_env", name)
 }
 
-// Show returns the raw contents of an environment file.
 func Show(name string) (string, error) {
 	path := filepath.Join("env", name+".yaml")
 	data, err := os.ReadFile(path)
@@ -111,7 +102,6 @@ func Show(name string) (string, error) {
 	return string(data), nil
 }
 
-// updateApixYAMLField reads apix.yaml, sets a top-level field, and writes it back.
 func updateApixYAMLField(key string, value interface{}) error {
 	data, err := os.ReadFile("apix.yaml")
 	if err != nil {

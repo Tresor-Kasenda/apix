@@ -1,4 +1,3 @@
-// env.go defines the "apix env" command group for environment management.
 package cli
 
 import (

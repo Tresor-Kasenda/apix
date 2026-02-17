@@ -1,4 +1,3 @@
-// post.go defines the "apix post" command.
 package cli
 
 import "github.com/spf13/cobra"

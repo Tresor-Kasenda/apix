@@ -1,4 +1,3 @@
-// delete.go defines the "apix delete" command.
 package cli
 
 import "github.com/spf13/cobra"

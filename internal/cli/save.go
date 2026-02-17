@@ -1,4 +1,3 @@
-// save.go defines the "apix save" command for saving the last request.
 package cli
 
 import (

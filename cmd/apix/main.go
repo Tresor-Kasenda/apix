@@ -1,4 +1,3 @@
-// Package main is the entry point for the apix CLI.
 package main
 
 import (
@@ -8,7 +7,6 @@ import (
 	"github.com/Tresor-Kasend/apix/internal/cli"
 )
 
-// version is set at build time via -ldflags.
 var version = "dev"
 
 func main() {

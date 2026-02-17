@@ -1,4 +1,3 @@
-// init_cmd.go defines the "apix init" command for project scaffolding.
 package cli
 
 import (
@@ -8,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/Tresor-Kasend/apix/internal/config"
+	"github.com/Tresor-Kasend/apix/internal/detect"
 	"github.com/Tresor-Kasend/apix/internal/env"
 	"github.com/Tresor-Kasend/apix/internal/output"
+	"github.com/Tresor-Kasend/apix/internal/request"
 	"github.com/spf13/cobra"
 )
 
@@ -28,8 +29,17 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("apix.yaml already exists in this directory")
 	}
 
-	// Prompt for base URL.
-	baseURL := promptInput("Base URL", "http://localhost:8000/api")
+	// Detect framework and routes.
+	result := detect.Detect(".")
+
+	// Propose base URL based on detected framework.
+	defaultURL := "http://localhost:8000/api"
+	if result.Framework != nil {
+		output.PrintInfo(fmt.Sprintf("Detected: %s (%s)", result.Framework.Name, result.Framework.Language))
+		defaultURL = fmt.Sprintf("http://localhost:%d/api", result.Framework.DefaultPort)
+	}
+
+	baseURL := promptInput("Base URL", defaultURL)
 
 	// Create directories.
 	dirs := []string{"requests", "env", ".apix"}
@@ -50,6 +60,22 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	output.PrintSuccess("Created env/dev.yaml")
+
+	// Save detected routes as request files.
+	if len(result.Routes) > 0 {
+		for _, route := range result.Routes {
+			name := detect.SanitizeName(route.Method, route.Path)
+			req := request.SavedRequest{
+				Method: route.Method,
+				Path:   route.Path,
+			}
+			if err := request.Save(name, req); err != nil {
+				output.PrintError(fmt.Errorf("saving route %s: %w", name, err))
+				continue
+			}
+		}
+		output.PrintSuccess(fmt.Sprintf("Found %d routes, saved to requests/", len(result.Routes)))
+	}
 
 	output.PrintSuccess("Project initialized! Run 'apix get /health' to test.")
 	return nil

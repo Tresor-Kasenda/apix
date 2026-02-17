@@ -1,4 +1,3 @@
-// get.go defines the "apix get" command.
 package cli
 
 import "github.com/spf13/cobra"

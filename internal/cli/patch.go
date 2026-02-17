@@ -1,4 +1,3 @@
-// patch.go defines the "apix patch" command.
 package cli
 
 import "github.com/spf13/cobra"

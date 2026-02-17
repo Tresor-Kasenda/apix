@@ -1,4 +1,3 @@
-// Package config handles loading and managing apix project configuration.
 package config
 
 import (
@@ -12,7 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the full apix project configuration.
 type Config struct {
 	Project    string            `mapstructure:"project"    yaml:"project"`
 	BaseURL    string            `mapstructure:"base_url"   yaml:"base_url"`
@@ -23,7 +21,6 @@ type Config struct {
 	Variables  map[string]string `mapstructure:"variables"  yaml:"variables,omitempty"`
 }
 
-// AuthConfig holds authentication settings.
 type AuthConfig struct {
 	Type         string `mapstructure:"type"          yaml:"type"`
 	Token        string `mapstructure:"token"         yaml:"token,omitempty"`
@@ -31,8 +28,6 @@ type AuthConfig struct {
 	HeaderFormat string `mapstructure:"header_format" yaml:"header_format,omitempty"`
 }
 
-// Load reads apix.yaml from the current directory and applies the active
-// environment overlay if one is configured.
 func Load() (*Config, error) {
 	v := viper.New()
 	v.SetConfigName("apix")
@@ -62,12 +57,10 @@ func Load() (*Config, error) {
 		cfg.Variables = make(map[string]string)
 	}
 
-	// Load saved token from .apix/token if it exists.
 	if token, err := loadToken(); err == nil && token != "" {
 		cfg.Auth.Token = token
 	}
 
-	// Apply environment overlay (skip silently if env file is missing).
 	if cfg.CurrentEnv != "" {
 		_ = overlayEnv(&cfg, cfg.CurrentEnv)
 	}
@@ -75,7 +68,6 @@ func Load() (*Config, error) {
 	return &cfg, nil
 }
 
-// SaveToken persists a captured token to .apix/token.
 func SaveToken(token string) error {
 	if err := os.MkdirAll(".apix", 0o755); err != nil {
 		return fmt.Errorf("creating .apix directory: %w", err)
@@ -138,13 +130,11 @@ func defaultConfig() *Config {
 	}
 }
 
-// Exists reports whether an apix.yaml file exists in the current directory.
 func Exists() bool {
 	_, err := os.Stat("apix.yaml")
 	return err == nil
 }
 
-// WriteDefault creates a default apix.yaml with the given base URL.
 func WriteDefault(baseURL string) error {
 	cfg := map[string]interface{}{
 		"project":     "my-api",
