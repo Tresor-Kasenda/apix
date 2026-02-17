@@ -109,6 +109,49 @@ func TestLoadRequestWithCapture(t *testing.T) {
 	}
 }
 
+func TestLoadRequestWithHooks(t *testing.T) {
+	withTempDirAsWorkingDirRequest(t)
+
+	if err := os.MkdirAll("requests", 0o755); err != nil {
+		t.Fatalf("creating requests dir: %v", err)
+	}
+
+	yamlContent := "" +
+		"name: checkout\n" +
+		"method: POST\n" +
+		"path: /checkout\n" +
+		"pre_request:\n" +
+		"  - run: login\n" +
+		"    capture:\n" +
+		"      SESSION_ID: data.session.id\n" +
+		"post_request:\n" +
+		"  - run: metrics\n"
+	if err := os.WriteFile(filepath.Join("requests", "checkout.yaml"), []byte(yamlContent), 0o644); err != nil {
+		t.Fatalf("writing request file: %v", err)
+	}
+
+	got, err := Load("checkout")
+	if err != nil {
+		t.Fatalf("loading request failed: %v", err)
+	}
+
+	if len(got.PreRequest) != 1 {
+		t.Fatalf("expected 1 pre hook, got %d", len(got.PreRequest))
+	}
+	if got.PreRequest[0].Run != "login" {
+		t.Fatalf("expected pre hook run=login, got %q", got.PreRequest[0].Run)
+	}
+	if got.PreRequest[0].Capture["SESSION_ID"] != "data.session.id" {
+		t.Fatalf("expected pre hook capture path data.session.id, got %q", got.PreRequest[0].Capture["SESSION_ID"])
+	}
+	if len(got.PostRequest) != 1 {
+		t.Fatalf("expected 1 post hook, got %d", len(got.PostRequest))
+	}
+	if got.PostRequest[0].Run != "metrics" {
+		t.Fatalf("expected post hook run=metrics, got %q", got.PostRequest[0].Run)
+	}
+}
+
 func withTempDirAsWorkingDirRequest(t *testing.T) {
 	t.Helper()
 

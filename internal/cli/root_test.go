@@ -6,6 +6,19 @@ import (
 	apixhttp "github.com/Tresor-Kasend/apix/internal/http"
 )
 
+func TestRootRegistersWatchCommand(t *testing.T) {
+	t.Parallel()
+
+	cmd := rootCmd()
+	found, _, err := cmd.Find([]string{"watch"})
+	if err != nil {
+		t.Fatalf("expected watch command to be registered: %v", err)
+	}
+	if found == nil || found.Name() != "watch" {
+		t.Fatalf("expected to find watch command, got %+v", found)
+	}
+}
+
 func TestParseQueryFlags(t *testing.T) {
 	t.Parallel()
 

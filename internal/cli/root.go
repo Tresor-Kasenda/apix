@@ -55,6 +55,7 @@ func rootCmd() *cobra.Command {
 		newRunCmd(),
 		newChainCmd(),
 		newTestCmd(),
+		newWatchCmd(),
 		newListCmd(),
 		newShowCmd(),
 		newRenameCmd(),
@@ -82,6 +83,13 @@ type ExecuteOptions struct {
 	Timeout     time.Duration
 	NoFollow    bool
 	EnvOverride string
+	Retry       int
+	RetryDelay  time.Duration
+	Proxy       string
+	Insecure    bool
+	CertFile    string
+	KeyFile     string
+	NoCookies   bool
 
 	RequestName     string
 	SkipAutoRefresh bool
@@ -149,6 +157,16 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 	client := apixhttp.NewClientWithConfig(apixhttp.ClientConfig{
 		Timeout:         timeout,
 		FollowRedirects: !opts.NoFollow,
+		Network: apixhttp.NetworkOptions{
+			Retry:         opts.Retry,
+			RetryDelay:    opts.RetryDelay,
+			ProxyURL:      opts.Proxy,
+			Insecure:      opts.Insecure,
+			CertFile:      opts.CertFile,
+			KeyFile:       opts.KeyFile,
+			NoCookies:     opts.NoCookies,
+			CookieJarPath: filepath.Join(".apix", "cookies.jar"),
+		},
 	})
 
 	requestStart := time.Now()
@@ -188,6 +206,13 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 				Timeout:         opts.Timeout,
 				NoFollow:        opts.NoFollow,
 				EnvOverride:     opts.EnvOverride,
+				Retry:           opts.Retry,
+				RetryDelay:      opts.RetryDelay,
+				Proxy:           opts.Proxy,
+				Insecure:        opts.Insecure,
+				CertFile:        opts.CertFile,
+				KeyFile:         opts.KeyFile,
+				NoCookies:       opts.NoCookies,
 				RequestName:     loginRequest,
 				SkipAutoRefresh: true,
 				SkipSaveLast:    true,
@@ -341,6 +366,9 @@ func executeRequest(cmd *cobra.Command, method string, args []string) error {
 		NoFollow:    noFollow,
 		Timeout:     time.Duration(timeoutSeconds) * time.Second,
 	}
+	if err := applyAdvancedNetworkFlags(cmd, &opts); err != nil {
+		return err
+	}
 
 	if flag := cmd.Flags().Lookup("data"); flag != nil && flag.Changed {
 		opts.Body, _ = cmd.Flags().GetString("data")
@@ -372,6 +400,17 @@ func addExecutionFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("output", "o", "", "Write response body to a file")
 	cmd.Flags().IntP("timeout", "t", 0, "Request timeout in seconds (overrides config)")
 	cmd.Flags().Bool("no-follow", false, "Do not follow redirects")
+	addAdvancedNetworkFlags(cmd)
+}
+
+func addAdvancedNetworkFlags(cmd *cobra.Command) {
+	cmd.Flags().Int("retry", 0, "Retry count on network errors and 5xx responses")
+	cmd.Flags().Duration("retry-delay", apixhttp.DefaultRetryDelay, "Base delay between retries (e.g. 200ms, 1s)")
+	cmd.Flags().String("proxy", "", "Proxy URL (e.g. http://localhost:8080)")
+	cmd.Flags().BoolP("insecure", "k", false, "Allow insecure TLS connections")
+	cmd.Flags().String("cert", "", "Client TLS certificate file")
+	cmd.Flags().String("key", "", "Client TLS key file")
+	cmd.Flags().Bool("no-cookies", false, "Disable persistent cookie jar")
 }
 
 func addBodyFlags(cmd *cobra.Command) {
@@ -570,4 +609,77 @@ func parseKeyValueSlice(items []string, sep string) map[string]string {
 		}
 	}
 	return result
+}
+
+func applyAdvancedNetworkFlags(cmd *cobra.Command, opts *ExecuteOptions) error {
+	if cmd == nil || opts == nil {
+		return nil
+	}
+
+	if flag := cmd.Flags().Lookup("retry"); flag != nil {
+		retry, err := cmd.Flags().GetInt("retry")
+		if err != nil {
+			return err
+		}
+		if retry < 0 {
+			return fmt.Errorf("--retry must be >= 0")
+		}
+		opts.Retry = retry
+	}
+
+	if flag := cmd.Flags().Lookup("retry-delay"); flag != nil {
+		delay, err := cmd.Flags().GetDuration("retry-delay")
+		if err != nil {
+			return err
+		}
+		if delay < 0 {
+			return fmt.Errorf("--retry-delay must be >= 0")
+		}
+		opts.RetryDelay = delay
+	}
+
+	if flag := cmd.Flags().Lookup("proxy"); flag != nil {
+		proxy, err := cmd.Flags().GetString("proxy")
+		if err != nil {
+			return err
+		}
+		opts.Proxy = strings.TrimSpace(proxy)
+	}
+
+	if flag := cmd.Flags().Lookup("insecure"); flag != nil {
+		insecure, err := cmd.Flags().GetBool("insecure")
+		if err != nil {
+			return err
+		}
+		opts.Insecure = insecure
+	}
+
+	if flag := cmd.Flags().Lookup("cert"); flag != nil {
+		certFile, err := cmd.Flags().GetString("cert")
+		if err != nil {
+			return err
+		}
+		opts.CertFile = strings.TrimSpace(certFile)
+	}
+
+	if flag := cmd.Flags().Lookup("key"); flag != nil {
+		keyFile, err := cmd.Flags().GetString("key")
+		if err != nil {
+			return err
+		}
+		opts.KeyFile = strings.TrimSpace(keyFile)
+	}
+
+	if flag := cmd.Flags().Lookup("no-cookies"); flag != nil {
+		noCookies, err := cmd.Flags().GetBool("no-cookies")
+		if err != nil {
+			return err
+		}
+		opts.NoCookies = noCookies
+	}
+
+	if (opts.CertFile == "") != (opts.KeyFile == "") {
+		return fmt.Errorf("--cert and --key must be provided together")
+	}
+	return nil
 }

@@ -19,12 +19,25 @@ func newChainCmd() *cobra.Command {
 			varFlags, _ := cmd.Flags().GetStringSlice("var")
 			flagVars := parseKeyValueSlice(varFlags, "=")
 			envOverride, _ := cmd.Flags().GetString("env")
+			baseOpts := ExecuteOptions{
+				EnvOverride: envOverride,
+			}
+			if err := applyAdvancedNetworkFlags(cmd, &baseOpts); err != nil {
+				return err
+			}
 
 			result, err := runner.RunChain(args, flagVars, envOverride, func(name string, vars map[string]string, env string) (*apixhttp.Response, error) {
 				opts := ExecuteOptions{
 					Vars:        vars,
-					EnvOverride: env,
 					RequestName: name,
+					EnvOverride: env,
+					Retry:       baseOpts.Retry,
+					RetryDelay:  baseOpts.RetryDelay,
+					Proxy:       baseOpts.Proxy,
+					Insecure:    baseOpts.Insecure,
+					CertFile:    baseOpts.CertFile,
+					KeyFile:     baseOpts.KeyFile,
+					NoCookies:   baseOpts.NoCookies,
 				}
 				return executeSavedRequestWithResponse(name, opts)
 			})
@@ -42,5 +55,6 @@ func newChainCmd() *cobra.Command {
 
 	cmd.Flags().StringSliceP("var", "V", nil, "Variables (key=value)")
 	cmd.Flags().String("env", "", "Use a specific environment for this chain only")
+	addAdvancedNetworkFlags(cmd)
 	return cmd
 }

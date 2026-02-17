@@ -11,14 +11,21 @@ import (
 )
 
 type SavedRequest struct {
-	Name    string            `yaml:"name"`
-	Method  string            `yaml:"method"`
-	Path    string            `yaml:"path"`
-	Headers map[string]string `yaml:"headers,omitempty"`
-	Query   map[string]string `yaml:"query,omitempty"`
-	Body    string            `yaml:"body,omitempty"`
+	Name        string            `yaml:"name"`
+	Method      string            `yaml:"method"`
+	Path        string            `yaml:"path"`
+	Headers     map[string]string `yaml:"headers,omitempty"`
+	Query       map[string]string `yaml:"query,omitempty"`
+	Body        string            `yaml:"body,omitempty"`
+	Capture     map[string]string `yaml:"capture,omitempty"`
+	PreRequest  []Hook            `yaml:"pre_request,omitempty"`
+	PostRequest []Hook            `yaml:"post_request,omitempty"`
+	Expect      *Expect           `yaml:"expect,omitempty"`
+}
+
+type Hook struct {
+	Run     string            `yaml:"run,omitempty"`
 	Capture map[string]string `yaml:"capture,omitempty"`
-	Expect  *Expect           `yaml:"expect,omitempty"`
 }
 
 type AssertionRule map[string]interface{}

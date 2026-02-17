@@ -40,6 +40,9 @@ func newRunCmd() *cobra.Command {
 				Timeout:     time.Duration(timeoutSeconds) * time.Second,
 				EnvOverride: envOverride,
 			}
+			if err := applyAdvancedNetworkFlags(cmd, &opts); err != nil {
+				return err
+			}
 
 			return executeSavedRequest(name, opts)
 		},

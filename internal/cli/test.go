@@ -26,6 +26,12 @@ func newTestCmd() *cobra.Command {
 			envOverride, _ := cmd.Flags().GetString("env")
 			varFlags, _ := cmd.Flags().GetStringSlice("var")
 			flagVars := parseKeyValueSlice(varFlags, "=")
+			baseOpts := ExecuteOptions{
+				EnvOverride: envOverride,
+			}
+			if err := applyAdvancedNetworkFlags(cmd, &baseOpts); err != nil {
+				return err
+			}
 
 			suite, err := tester.Run(tester.RunnerOptions{
 				Name:        name,
@@ -37,6 +43,13 @@ func newTestCmd() *cobra.Command {
 					Vars:           vars,
 					EnvOverride:    env,
 					RequestName:    requestName,
+					Retry:          baseOpts.Retry,
+					RetryDelay:     baseOpts.RetryDelay,
+					Proxy:          baseOpts.Proxy,
+					Insecure:       baseOpts.Insecure,
+					CertFile:       baseOpts.CertFile,
+					KeyFile:        baseOpts.KeyFile,
+					NoCookies:      baseOpts.NoCookies,
 					SkipSaveLast:   true,
 					SuppressOutput: true,
 					Silent:         true,
@@ -67,5 +80,6 @@ func newTestCmd() *cobra.Command {
 	cmd.Flags().String("dir", "", "Directory containing request YAML files to test")
 	cmd.Flags().StringSliceP("var", "V", nil, "Variables (key=value)")
 	cmd.Flags().String("env", "", "Use a specific environment for this test run only")
+	addAdvancedNetworkFlags(cmd)
 	return cmd
 }

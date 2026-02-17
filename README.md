@@ -201,6 +201,42 @@ apix chain login get-profile --env staging
 apix chain login get-profile -V "TENANT=acme"
 ```
 
+## Watch Mode + Hooks
+
+Watch a saved request and re-run it on file changes:
+
+```bash
+# Event-based watch (fs events)
+apix watch login
+
+# Polling fallback (checks changes every 5 seconds)
+apix watch login --interval 5s
+```
+
+Add declarative hooks in request YAML:
+
+```yaml
+# requests/login.yaml
+name: login
+method: POST
+path: /login
+body: '{"email":"test@test.com","password":"pass"}'
+pre_request:
+  - run: bootstrap
+    capture:
+      SESSION_ID: data.session.id
+post_request:
+  - run: metrics
+capture:
+  TOKEN: data.token
+```
+
+Hook behavior:
+- `pre_request` runs before the main request.
+- `post_request` runs after a successful main request.
+- Hook failures stop the current iteration with an explicit error message.
+- Guardrails prevent recursive hook loops.
+
 ## Auto Token Capture
 
 When `auth.token_path` is configured, apix automatically captures tokens from
@@ -336,6 +372,29 @@ apix export postman
 apix export postman --output postman-collection.json
 ```
 
+## Advanced Network
+
+Retry, proxy, TLS, and cookie controls:
+
+```bash
+# Retry flaky endpoints (network errors + 5xx)
+apix get /unstable --retry 3 --retry-delay 200ms
+
+# Route through a proxy
+apix get /users --proxy http://localhost:8080
+
+# Ignore TLS certificate validation (self-signed, local env)
+apix get https://self-signed.local -k
+
+# Use client TLS certificate and key
+apix get https://mtls.example.com --cert client.crt --key client.key
+
+# Disable persistent cookie jar for one request
+apix get /session --no-cookies
+```
+
+By default, cookies are persisted between requests in `.apix/cookies.jar`.
+
 ## Command Reference
 
 | Command                  | Description                        |
@@ -358,6 +417,7 @@ apix export postman --output postman-collection.json
 | `apix run <name>`        | Run saved request                  |
 | `apix chain <req1> <req2> [...]` | Run saved requests sequentially with variable capture |
 | `apix test [name]`       | Run request assertions (`--dir` for custom folder) |
+| `apix watch <name>`      | Re-run a saved request on file changes (`--interval` for polling) |
 | `apix history`           | Show request execution history (`--limit`, `--clear`) |
 | `apix config show`       | Show merged active configuration |
 | `apix import postman <file>` | Import a Postman collection |
@@ -377,7 +437,8 @@ apix export postman --output postman-collection.json
 | `--header`        | `-H`  | Add header (key:value)          |
 | `--query`         | `-q`  | Add query param (key=value)     |
 | `--var`           | `-V`  | Set variable (key=value)        |
-| `--env`           |       | Use a specific environment for `run`/`chain`/`test` only |
+| `--env`           |       | Use a specific environment for `run`/`chain`/`test`/`watch` only |
+| `--interval`      |       | Polling interval for `apix watch` (e.g. `5s`) |
 | `--dir`           |       | Use a custom directory for `apix test` |
 | `--data`          | `-d`  | Request body (JSON string)      |
 | `--file`          | `-f`  | Request body from file          |
@@ -391,6 +452,13 @@ apix export postman --output postman-collection.json
 | `--output`        | `-o`  | Write response body to file     |
 | `--timeout`       | `-t`  | Override timeout (seconds)      |
 | `--no-follow`     |       | Disable redirect following      |
+| `--retry`         |       | Retry count on network errors and 5xx |
+| `--retry-delay`   |       | Base retry delay (`200ms`, `1s`, ...) |
+| `--proxy`         |       | Proxy URL (`http://localhost:8080`) |
+| `--insecure`      | `-k`  | Skip TLS certificate validation |
+| `--cert`          |       | Client TLS certificate file     |
+| `--key`           |       | Client TLS key file             |
+| `--no-cookies`    |       | Disable persistent cookie jar   |
 
 ## Cross-Platform Build
 

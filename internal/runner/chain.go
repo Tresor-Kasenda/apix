@@ -49,7 +49,7 @@ func RunChain(names []string, flagVars map[string]string, envOverride string, ex
 			return result, fmt.Errorf("chain request %q returned HTTP %d %s", name, resp.StatusCode, resp.Status)
 		}
 
-		captured, err := captureVariables(saved.Capture, resp)
+		captured, err := CaptureVariables(saved.Capture, resp)
 		if err != nil {
 			return result, fmt.Errorf("chain request %q capture failed: %w", name, err)
 		}
@@ -63,7 +63,7 @@ func RunChain(names []string, flagVars map[string]string, envOverride string, ex
 	return result, nil
 }
 
-func captureVariables(capture map[string]string, resp *apixhttp.Response) (map[string]string, error) {
+func CaptureVariables(capture map[string]string, resp *apixhttp.Response) (map[string]string, error) {
 	if len(capture) == 0 {
 		return nil, nil
 	}
