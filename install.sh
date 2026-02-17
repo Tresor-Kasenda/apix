@@ -60,7 +60,7 @@ echo "Installing ${BINARY_NAME} ${VERSION} for ${OS}/${ARCH}..."
 
 ARCHIVE=""
 for candidate in "${ARCHIVE_CANDIDATES[@]}"; do
-  if curl -fsSL "${BASE_URL}/${candidate}" -o "$TMP_DIR/$candidate"; then
+  if curl -fsSL "${BASE_URL}/${candidate}" -o "$TMP_DIR/$candidate" 2>/dev/null; then
     ARCHIVE="$candidate"
     break
   fi
@@ -90,6 +90,7 @@ fi
 tar -xzf "$TMP_DIR/$ARCHIVE" -C "$TMP_DIR"
 SOURCE_BIN=""
 for extracted in \
+  "$TMP_DIR/$BINARY_NAME" \
   "$TMP_DIR/${BINARY_NAME}_${VERSION_CLEAN}_${OS}_${ARCH}/$BINARY_NAME" \
   "$TMP_DIR/${BINARY_NAME}-${VERSION_CLEAN}-${OS}-${ARCH}/$BINARY_NAME"; do
   if [[ -f "$extracted" ]]; then
