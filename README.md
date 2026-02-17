@@ -11,6 +11,38 @@ Replaces Postman, curl, and httpie with a simple, powerful workflow.
 go install github.com/Tresor-Kasend/apix/cmd/apix@latest
 ```
 
+### Via curl installer (macOS/Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tresor-Kasend/apix/main/install.sh | bash
+```
+
+Install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tresor-Kasend/apix/main/install.sh | bash -s -- v0.1.0
+```
+
+### Via Homebrew
+
+```bash
+brew tap Tresor-Kasend/tap
+brew install apix
+```
+
+### Via Snap
+
+```bash
+sudo snap install apix
+```
+
+Or install a locally built snap:
+
+```bash
+WITH_SNAP=1 make dist-all
+sudo snap install dist/apix_<version>_linux_amd64.snap --dangerous
+```
+
 ### Build locally
 
 ```bash
@@ -18,6 +50,31 @@ git clone https://github.com/Tresor-Kasend/apix.git
 cd apix
 make build
 ./bin/apix --help
+```
+
+### Build release artifacts (maintainers)
+
+```bash
+# Cross-compile + package tar.gz for macOS, Linux, Windows + checksums
+make dist
+
+# Generate Homebrew formula from dist/checksums.txt
+make dist-brew
+
+# Publish formula to a Homebrew tap repo
+TAP_REPO=Tresor-Kasend/homebrew-tap GITHUB_TOKEN=<token> make dist-brew-publish
+
+# Build everything and include snap package (Linux host + snapcraft required)
+WITH_SNAP=1 make dist-all
+
+# Build + generate formula + publish tap + build snap
+WITH_BREW_PUBLISH=1 TAP_REPO=Tresor-Kasend/homebrew-tap GITHUB_TOKEN=<token> WITH_SNAP=1 make dist-all
+```
+
+Dry-run tap publication without pushing:
+
+```bash
+TAP_REPO=Tresor-Kasend/homebrew-tap DRY_RUN=1 make dist-brew-publish
 ```
 
 ## Quick Start
