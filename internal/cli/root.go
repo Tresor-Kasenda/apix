@@ -12,6 +12,7 @@ import (
 
 	apixauth "github.com/Tresor-Kasend/apix/internal/auth"
 	"github.com/Tresor-Kasend/apix/internal/config"
+	"github.com/Tresor-Kasend/apix/internal/history"
 	apixhttp "github.com/Tresor-Kasend/apix/internal/http"
 	"github.com/Tresor-Kasend/apix/internal/output"
 	"github.com/Tresor-Kasend/apix/internal/request"
@@ -46,6 +47,8 @@ func rootCmd() *cobra.Command {
 		newOptionsCmd(),
 		newInitCmd(),
 		newEnvCmd(),
+		newHistoryCmd(),
+		newConfigCmd(),
 		newSaveCmd(),
 		newRunCmd(),
 		newChainCmd(),
@@ -146,6 +149,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 		FollowRedirects: !opts.NoFollow,
 	})
 
+	requestStart := time.Now()
 	resp, err := client.Send(apixhttp.RequestOptions{
 		Method:  method,
 		URL:     urlStr,
@@ -154,8 +158,21 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 		Body:    bodyReader,
 	})
 	if err != nil {
+		_ = history.Append(history.Entry{
+			Method:     strings.ToUpper(method),
+			Path:       urlStr,
+			Status:     0,
+			DurationMS: time.Since(requestStart).Milliseconds(),
+		})
 		return nil, err
 	}
+	_ = history.Append(history.Entry{
+		Method:       strings.ToUpper(method),
+		Path:         urlStr,
+		Status:       resp.StatusCode,
+		DurationMS:   resp.Duration.Milliseconds(),
+		ResponseSize: len(resp.Body),
+	})
 
 	shouldRetry, refreshErr := apixauth.RefreshIfNeeded(
 		cfg,
@@ -203,7 +220,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 	shouldPrintBody := !opts.SuppressOutput && !opts.HeadersOnly && !strings.EqualFold(method, "HEAD") && opts.OutputFile == ""
 
 	if shouldPrintStatus {
-		output.PrintStatus(method, path, resp.StatusCode, resp.Status, resp.Duration)
+		output.PrintStatus(method, path, resp.StatusCode, resp.Status, resp.Duration, len(resp.Body))
 	}
 	if shouldPrintHeaders {
 		output.PrintHeaders(resp.Headers)

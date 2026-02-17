@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+
+	"github.com/Tresor-Kasend/apix/internal/history"
 )
 
 func TestRunWithEnvOverrideDoesNotPersistCurrentEnv(t *testing.T) {
@@ -82,6 +84,60 @@ auth:
 	}
 	if !containsLine(string(data), "current_env: dev") {
 		t.Fatalf("expected current_env to remain dev, got:\n%s", string(data))
+	}
+}
+
+func TestRunAppendsHistoryEntry(t *testing.T) {
+	withTempDirAsWorkingDirRun(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	apixYAML := fmt.Sprintf(`project: test
+base_url: %s
+timeout: 10
+current_env: dev
+headers:
+  Accept: application/json
+auth:
+  type: none
+`, server.URL)
+
+	if err := os.WriteFile("apix.yaml", []byte(apixYAML), 0o644); err != nil {
+		t.Fatalf("writing apix.yaml: %v", err)
+	}
+	if err := os.MkdirAll("requests", 0o755); err != nil {
+		t.Fatalf("creating requests dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join("requests", "ping.yaml"), []byte("name: ping\nmethod: GET\npath: /\n"), 0o644); err != nil {
+		t.Fatalf("writing request file: %v", err)
+	}
+
+	if err := executeSavedRequest("ping", ExecuteOptions{
+		Silent:         true,
+		SuppressOutput: true,
+	}); err != nil {
+		t.Fatalf("executeSavedRequest failed: %v", err)
+	}
+
+	entries, err := history.Read(1)
+	if err != nil {
+		t.Fatalf("reading history: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected one history entry, got %d", len(entries))
+	}
+	if entries[0].Method != "GET" {
+		t.Fatalf("expected method GET, got %q", entries[0].Method)
+	}
+	if entries[0].Status != 200 {
+		t.Fatalf("expected status 200, got %d", entries[0].Status)
+	}
+	if entries[0].Path == "" {
+		t.Fatalf("expected non-empty path")
 	}
 }
 

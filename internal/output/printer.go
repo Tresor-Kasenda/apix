@@ -20,12 +20,12 @@ var (
 	success = color.New(color.FgGreen)
 )
 
-func PrintStatus(method, path string, statusCode int, status string, duration time.Duration) {
+func PrintStatus(method, path string, statusCode int, status string, duration time.Duration, bodySize int) {
 	c := statusColor(statusCode)
 	ms := float64(duration.Microseconds()) / 1000.0
 	fmt.Println()
 	c.Printf("  %s %s → %d %s", method, path, statusCode, statusText(status))
-	gray.Printf(" (%.0fms)\n", ms)
+	gray.Printf(" (%.0fms, %s)\n", ms, formatBodySize(bodySize))
 	fmt.Println()
 }
 
@@ -112,4 +112,14 @@ func statusText(status string) string {
 		return parts[1]
 	}
 	return status
+}
+
+func formatBodySize(size int) string {
+	if size < 1024 {
+		return fmt.Sprintf("%dB", size)
+	}
+	if size < 1024*1024 {
+		return fmt.Sprintf("%.1fKB", float64(size)/1024.0)
+	}
+	return fmt.Sprintf("%.1fMB", float64(size)/(1024.0*1024.0))
 }

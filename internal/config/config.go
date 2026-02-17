@@ -13,25 +13,25 @@ import (
 )
 
 type Config struct {
-	Project    string            `mapstructure:"project"    yaml:"project"`
-	BaseURL    string            `mapstructure:"base_url"   yaml:"base_url"`
-	Timeout    int               `mapstructure:"timeout"    yaml:"timeout"`
-	Headers    map[string]string `mapstructure:"headers"    yaml:"headers"`
-	Auth       AuthConfig        `mapstructure:"auth"       yaml:"auth"`
-	CurrentEnv string            `mapstructure:"current_env" yaml:"current_env"`
-	Variables  map[string]string `mapstructure:"variables"  yaml:"variables,omitempty"`
+	Project    string            `mapstructure:"project"    yaml:"project"                json:"project"`
+	BaseURL    string            `mapstructure:"base_url"   yaml:"base_url"               json:"base_url"`
+	Timeout    int               `mapstructure:"timeout"    yaml:"timeout"                json:"timeout"`
+	Headers    map[string]string `mapstructure:"headers"    yaml:"headers"                json:"headers"`
+	Auth       AuthConfig        `mapstructure:"auth"       yaml:"auth"                   json:"auth"`
+	CurrentEnv string            `mapstructure:"current_env" yaml:"current_env"           json:"current_env"`
+	Variables  map[string]string `mapstructure:"variables"  yaml:"variables,omitempty"    json:"variables,omitempty"`
 }
 
 type AuthConfig struct {
-	Type         string `mapstructure:"type"          yaml:"type"`
-	Token        string `mapstructure:"token"         yaml:"token,omitempty"`
-	TokenPath    string `mapstructure:"token_path"    yaml:"token_path,omitempty"`
-	HeaderName   string `mapstructure:"header_name"   yaml:"header_name,omitempty"`
-	HeaderFormat string `mapstructure:"header_format" yaml:"header_format,omitempty"`
-	LoginRequest string `mapstructure:"login_request" yaml:"login_request,omitempty"`
-	Username     string `mapstructure:"username"      yaml:"username,omitempty"`
-	Password     string `mapstructure:"password"      yaml:"password,omitempty"`
-	APIKey       string `mapstructure:"api_key"       yaml:"api_key,omitempty"`
+	Type         string `mapstructure:"type"          yaml:"type"                   json:"type"`
+	Token        string `mapstructure:"token"         yaml:"token,omitempty"        json:"token,omitempty"`
+	TokenPath    string `mapstructure:"token_path"    yaml:"token_path,omitempty"   json:"token_path,omitempty"`
+	HeaderName   string `mapstructure:"header_name"   yaml:"header_name,omitempty"  json:"header_name,omitempty"`
+	HeaderFormat string `mapstructure:"header_format" yaml:"header_format,omitempty" json:"header_format,omitempty"`
+	LoginRequest string `mapstructure:"login_request" yaml:"login_request,omitempty" json:"login_request,omitempty"`
+	Username     string `mapstructure:"username"      yaml:"username,omitempty"     json:"username,omitempty"`
+	Password     string `mapstructure:"password"      yaml:"password,omitempty"     json:"password,omitempty"`
+	APIKey       string `mapstructure:"api_key"       yaml:"api_key,omitempty"      json:"api_key,omitempty"`
 }
 
 func Load() (*Config, error) {

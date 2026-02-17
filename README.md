@@ -289,6 +289,27 @@ apix test get-profile
 apix test --dir tests/
 ```
 
+## Developer Experience
+
+apix keeps a local request history and can show the effective merged config:
+
+```bash
+# Show the 20 most recent request executions
+apix history
+
+# Show a custom number of entries
+apix history --limit 50
+
+# Clear history
+apix history --clear
+
+# Show active merged configuration (apix.yaml + current env)
+apix config show
+```
+
+History is stored in `.apix/history.jsonl`.
+Standard status output now includes response duration and body size.
+
 ## Command Reference
 
 | Command                  | Description                        |
@@ -311,6 +332,8 @@ apix test --dir tests/
 | `apix run <name>`        | Run saved request                  |
 | `apix chain <req1> <req2> [...]` | Run saved requests sequentially with variable capture |
 | `apix test [name]`       | Run request assertions (`--dir` for custom folder) |
+| `apix history`           | Show request execution history (`--limit`, `--clear`) |
+| `apix config show`       | Show merged active configuration |
 | `apix list`              | List saved requests                |
 | `apix show <name>`       | Show a saved request YAML          |
 | `apix rename <old> <new>`| Rename a saved request             |
