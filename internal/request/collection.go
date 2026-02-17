@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -100,5 +101,55 @@ func ListSaved() ([]string, error) {
 			names = append(names, strings.TrimSuffix(strings.TrimSuffix(name, ".yaml"), ".yml"))
 		}
 	}
+	sort.Strings(names)
 	return names, nil
+}
+
+func Delete(name string) error {
+	path := filepath.Join("requests", name+".yaml")
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("request %q does not exist", name)
+		}
+		return fmt.Errorf("deleting request %q: %w", name, err)
+	}
+	return nil
+}
+
+func Rename(oldName, newName string) error {
+	if oldName == newName {
+		return fmt.Errorf("old and new request names must be different")
+	}
+
+	oldPath := filepath.Join("requests", oldName+".yaml")
+	newPath := filepath.Join("requests", newName+".yaml")
+
+	if _, err := os.Stat(oldPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("request %q does not exist", oldName)
+		}
+		return fmt.Errorf("checking request %q: %w", oldName, err)
+	}
+	if _, err := os.Stat(newPath); err == nil {
+		return fmt.Errorf("request %q already exists", newName)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("checking request %q: %w", newName, err)
+	}
+
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return fmt.Errorf("renaming request %q to %q: %w", oldName, newName, err)
+	}
+	return nil
+}
+
+func ReadRaw(name string) (string, error) {
+	path := filepath.Join("requests", name+".yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("request %q does not exist", name)
+		}
+		return "", fmt.Errorf("reading request %q: %w", name, err)
+	}
+	return string(data), nil
 }

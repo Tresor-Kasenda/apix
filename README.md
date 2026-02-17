@@ -159,10 +159,18 @@ apix post /login -d '{"email": "test@test.com", "password": "pass"}'
 
 # Save the last request
 apix save login
+apix save login --from-last
 
 # Replay it later
 apix run login
 apix run login -v  # with verbose headers
+apix run login --env staging
+
+# Manage saved requests
+apix list
+apix show login
+apix rename login auth-login
+apix delete auth-login --saved
 ```
 
 ## Auto Token Capture
@@ -210,7 +218,7 @@ apix get /users/${USER_ID} -V "USER_ID=42"
 | `apix post <path>`       | Send POST request                  |
 | `apix put <path>`        | Send PUT request                   |
 | `apix patch <path>`      | Send PATCH request                 |
-| `apix delete <path>`     | Send DELETE request                |
+| `apix delete <path>`     | Send DELETE request (`--saved` to delete a saved request) |
 | `apix head <path>`       | Send HEAD request                  |
 | `apix options <path>`    | Send OPTIONS request               |
 | `apix env use <name>`    | Switch environment                 |
@@ -221,6 +229,10 @@ apix get /users/${USER_ID} -V "USER_ID=42"
 | `apix env delete <name>` | Delete an environment              |
 | `apix save <name>`       | Save last request                  |
 | `apix run <name>`        | Run saved request                  |
+| `apix list`              | List saved requests                |
+| `apix show <name>`       | Show a saved request YAML          |
+| `apix rename <old> <new>`| Rename a saved request             |
+| `apix delete <name> --saved` | Delete a saved request         |
 
 ### Common Flags
 

@@ -48,6 +48,9 @@ func rootCmd() *cobra.Command {
 		newEnvCmd(),
 		newSaveCmd(),
 		newRunCmd(),
+		newListCmd(),
+		newShowCmd(),
+		newRenameCmd(),
 	)
 
 	return cmd
@@ -69,8 +72,9 @@ type ExecuteOptions struct {
 	Silent      bool
 	OutputFile  string
 
-	Timeout  time.Duration
-	NoFollow bool
+	Timeout     time.Duration
+	NoFollow    bool
+	EnvOverride string
 
 	RequestName     string
 	SkipAutoRefresh bool
@@ -91,7 +95,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 		return err
 	}
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadWithEnvOverride(opts.EnvOverride)
 	if err != nil {
 		return err
 	}
@@ -161,6 +165,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 				Vars:            opts.Vars,
 				Timeout:         opts.Timeout,
 				NoFollow:        opts.NoFollow,
+				EnvOverride:     opts.EnvOverride,
 				RequestName:     loginRequest,
 				SkipAutoRefresh: true,
 				SkipSaveLast:    true,

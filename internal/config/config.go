@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Tresor-Kasend/apix/internal/env"
 	"github.com/spf13/viper"
@@ -71,6 +72,20 @@ func Load() (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+func LoadWithEnvOverride(envName string) (*Config, error) {
+	cfg, err := Load()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(envName) == "" {
+		return cfg, nil
+	}
+	if err := overlayEnv(cfg, envName); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 func SaveToken(token string) error {

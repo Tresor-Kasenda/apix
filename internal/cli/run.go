@@ -23,6 +23,7 @@ func newRunCmd() *cobra.Command {
 			headersOnly, _ := cmd.Flags().GetBool("headers-only")
 			bodyOnly, _ := cmd.Flags().GetBool("body-only")
 			silent, _ := cmd.Flags().GetBool("silent")
+			envOverride, _ := cmd.Flags().GetString("env")
 
 			varFlags, _ := cmd.Flags().GetStringSlice("var")
 			flagVars := parseKeyValueSlice(varFlags, "=")
@@ -37,6 +38,7 @@ func newRunCmd() *cobra.Command {
 				OutputFile:  outputFile,
 				NoFollow:    noFollow,
 				Timeout:     time.Duration(timeoutSeconds) * time.Second,
+				EnvOverride: envOverride,
 			}
 
 			return executeSavedRequest(name, opts)
@@ -44,6 +46,7 @@ func newRunCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringSliceP("var", "V", nil, "Variables (key=value)")
+	cmd.Flags().String("env", "", "Use a specific environment for this run only")
 	addExecutionFlags(cmd)
 
 	return cmd
