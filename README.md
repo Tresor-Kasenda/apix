@@ -10,15 +10,38 @@
 A modern, framework-agnostic CLI API tester for terminal-first developers.
 Replaces Postman, curl, and httpie with a simple, powerful workflow.
 
+<p align="center">
+  <a href="https://github.com/Tresor-Kasenda/apix/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Tresor-Kasenda/apix"></a>
+  <a href="https://github.com/Tresor-Kasenda/apix/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/Tresor-Kasenda/apix"></a>
+  <a href="https://github.com/Tresor-Kasenda/apix/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/Tresor-Kasenda/apix"></a>
+  <a href="https://github.com/Tresor-Kasenda/apix/blob/main/go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/Tresor-Kasenda/apix"></a>
+</p>
+
+`apix` is built for developers who prefer terminal + Git workflows:
+- Save API requests as versioned files (`requests/*.yaml`)
+- Run chained flows with variable capture (`apix chain`)
+- Add assertions and run API checks in CI (`apix test`)
+- Watch requests live while editing (`apix watch`)
+
+| Need | curl | apix |
+|------|------|------|
+| Reuse requests across team | Manual scripts | Versioned request files (`requests/*.yaml`) |
+| Multi-step API flows | Ad-hoc shell glue | Native chaining + capture (`apix chain`) |
+| API validation in CI | Custom scripting | Built-in assertions (`apix test`) |
+| Fast local iteration | Re-run commands manually | Watch mode (`apix watch`) |
+
+If apix saves you time, give the repo a star.
+
 ## Installation
 
-### From source
+### Homebrew (recommended on macOS/Linux)
 
 ```bash
-go install github.com/Tresor-Kasenda/apix/cmd/apix@latest
+brew tap Tresor-Kasenda/homebrew-tap
+brew install apix
 ```
 
-### Via curl installer (macOS/Linux)
+### One-liner install script (macOS/Linux)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Tresor-Kasenda/apix/main/install.sh | bash
@@ -27,30 +50,16 @@ curl -fsSL https://raw.githubusercontent.com/Tresor-Kasenda/apix/main/install.sh
 Install a specific version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Tresor-Kasenda/apix/main/install.sh | bash -s -- v0.1.0
+curl -fsSL https://raw.githubusercontent.com/Tresor-Kasenda/apix/main/install.sh | bash -s -- v0.1.1
 ```
 
-### Via Homebrew
-
-```bash
-brew tap Tresor-Kasenda/homebrew-tap
-brew install apix
-```
-
-### Via Snap
+### Snap (Linux)
 
 ```bash
 sudo snap install apix
 ```
 
-Or install a locally built snap:
-
-```bash
-WITH_SNAP=1 make dist-all
-sudo snap install dist/apix_<version>_linux_amd64.snap --dangerous
-```
-
-### Build locally
+### Build from source
 
 ```bash
 git clone https://github.com/Tresor-Kasenda/apix.git
@@ -59,32 +68,57 @@ make build
 ./bin/apix --help
 ```
 
-### Build release artifacts (maintainers)
+## Quick Start (60 seconds)
 
 ```bash
-# Cross-compile + package tar.gz for macOS, Linux, Windows + checksums
+# 1) Initialize project structure (apix.yaml, requests/, env/)
+apix init
+
+# 2) Send your first request
+apix get /users
+
+# 3) Save and replay request workflows
+apix save list-users
+apix run list-users
+
+# 4) Add assertions and run tests
+apix test
+```
+
+Then explore:
+- `apix chain` for end-to-end API flows
+- `apix import` / `apix export` for migration from curl/Postman/Insomnia
+- `apix watch` for fast edit-and-rerun loops
+
+## Community
+
+- Report bugs: https://github.com/Tresor-Kasenda/apix/issues/new
+- Request features: https://github.com/Tresor-Kasenda/apix/issues/new
+- General issues list: https://github.com/Tresor-Kasenda/apix/issues
+
+## Maintainer Release Workflow
+
+```bash
+# Cross-compile + package archives + checksums
 make dist
 
 # Generate Homebrew formula from dist/checksums.txt
 make dist-brew
 
-# Publish formula to a Homebrew tap repo
+# Publish formula to Homebrew tap
 TAP_REPO=Tresor-Kasenda/homebrew-tap GITHUB_TOKEN=<token> make dist-brew-publish
 
-# Build everything and include snap package (Linux host + snapcraft required)
-WITH_SNAP=1 make dist-all
-
-# Build + generate formula + publish tap + build snap
+# Full pipeline (optional snap package)
 WITH_BREW_PUBLISH=1 TAP_REPO=Tresor-Kasenda/homebrew-tap GITHUB_TOKEN=<token> WITH_SNAP=1 make dist-all
 ```
 
-Dry-run tap publication without pushing:
+Dry-run tap publication without push:
 
 ```bash
 TAP_REPO=Tresor-Kasenda/homebrew-tap DRY_RUN=1 make dist-brew-publish
 ```
 
-## Quick Start
+## Extended Quick Start
 
 ```bash
 # Initialize a project
