@@ -48,7 +48,7 @@ changelog:
 
 release:
   github:
-    owner: ton-username
+    owner: Tresor-Kasenda
     name: apix
   draft: false
   prerelease: auto

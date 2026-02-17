@@ -2,7 +2,7 @@
 set -euo pipefail
 
 VERSION="${1:-latest}"
-REPO_OWNER="${REPO_OWNER:-Tresor-Kasend}"
+REPO_OWNER="${REPO_OWNER:-Tresor-Kasenda}"
 REPO_NAME="${REPO_NAME:-apix}"
 BINARY_NAME="${BINARY_NAME:-apix}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"

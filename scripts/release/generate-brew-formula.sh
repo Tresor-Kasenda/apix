@@ -10,7 +10,7 @@ VERSION_CLEAN="${VERSION#v}"
 DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
 FORMULA_DIR="${FORMULA_DIR:-$DIST_DIR/homebrew}"
 FORMULA_CLASS="${FORMULA_CLASS:-Apix}"
-OWNER="${REPO_OWNER:-Tresor-Kasend}"
+OWNER="${REPO_OWNER:-Tresor-Kasenda}"
 REPO="${REPO_NAME:-apix}"
 
 CHECKSUMS_FILE="$DIST_DIR/checksums.txt"
