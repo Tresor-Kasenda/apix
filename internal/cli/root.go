@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	apixauth "github.com/Tresor-Kasend/apix/internal/auth"
 	"github.com/Tresor-Kasend/apix/internal/config"
 	apixhttp "github.com/Tresor-Kasend/apix/internal/http"
 	"github.com/Tresor-Kasend/apix/internal/output"
@@ -70,9 +71,19 @@ type ExecuteOptions struct {
 
 	Timeout  time.Duration
 	NoFollow bool
+
+	RequestName     string
+	SkipAutoRefresh bool
+	SkipSaveLast    bool
+	FailOnHTTPError bool
+	SuppressOutput  bool
 }
 
 func executeFromOptions(method, path string, opts ExecuteOptions) error {
+	return executeFromOptionsInternal(method, path, opts, false)
+}
+
+func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alreadyRetried bool) error {
 	if err := validateDisplayModes(opts); err != nil {
 		return err
 	}
@@ -95,19 +106,14 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		headers[k] = v
 	}
 
-	if cfg.Auth.Type == "bearer" && cfg.Auth.Token != "" {
-		format := cfg.Auth.HeaderFormat
-		if format == "" {
-			format = "Bearer ${TOKEN}"
-		}
-		headers["Authorization"] = strings.ReplaceAll(format, "${TOKEN}", cfg.Auth.Token)
-	}
-
 	vars := request.BuildVariableMap(cfg.Variables, cfg.Auth.Token, opts.Vars)
 
 	urlStr = request.ResolveVariables(urlStr, vars)
 	for k, v := range headers {
 		headers[k] = request.ResolveVariables(v, vars)
+	}
+	if err := apixauth.Apply(headers, cfg, vars); err != nil {
+		return err
 	}
 
 	query := make(map[string]string)
@@ -144,13 +150,49 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		return err
 	}
 
+	shouldRetry, refreshErr := apixauth.RefreshIfNeeded(
+		cfg,
+		opts.RequestName,
+		resp.StatusCode,
+		alreadyRetried,
+		opts.SkipAutoRefresh,
+		func(loginRequest string) error {
+			return executeSavedRequest(loginRequest, ExecuteOptions{
+				Vars:            opts.Vars,
+				Timeout:         opts.Timeout,
+				NoFollow:        opts.NoFollow,
+				RequestName:     loginRequest,
+				SkipAutoRefresh: true,
+				SkipSaveLast:    true,
+				Silent:          true,
+				FailOnHTTPError: true,
+				SuppressOutput:  true,
+			})
+		},
+	)
+	if refreshErr != nil {
+		return refreshErr
+	}
+	if shouldRetry {
+		if !opts.Silent && !opts.BodyOnly && !opts.HeadersOnly {
+			output.PrintSuccess("Token expired, re-authenticated automatically")
+		}
+		return executeFromOptionsInternal(method, path, opts, true)
+	}
+	if alreadyRetried && resp.StatusCode == 401 && cfg.Auth.LoginRequest != "" && !opts.SkipAutoRefresh {
+		return fmt.Errorf("request is still unauthorized after automatic re-authentication")
+	}
+	if opts.FailOnHTTPError && resp.StatusCode >= 400 {
+		return fmt.Errorf("request failed with status %d %s", resp.StatusCode, resp.Status)
+	}
+
 	if err := writeOutputFile(opts.OutputFile, resp.Body); err != nil {
 		return err
 	}
 
-	shouldPrintStatus := !opts.Silent && !opts.BodyOnly
-	shouldPrintHeaders := !opts.Silent && (opts.HeadersOnly || opts.Verbose || strings.EqualFold(method, "HEAD"))
-	shouldPrintBody := !opts.HeadersOnly && !strings.EqualFold(method, "HEAD") && opts.OutputFile == ""
+	shouldPrintStatus := !opts.SuppressOutput && !opts.Silent && !opts.BodyOnly
+	shouldPrintHeaders := !opts.SuppressOutput && !opts.Silent && (opts.HeadersOnly || opts.Verbose || strings.EqualFold(method, "HEAD"))
+	shouldPrintBody := !opts.SuppressOutput && !opts.HeadersOnly && !strings.EqualFold(method, "HEAD") && opts.OutputFile == ""
 
 	if shouldPrintStatus {
 		output.PrintStatus(method, path, resp.StatusCode, resp.Status, resp.Duration)
@@ -174,15 +216,39 @@ func executeFromOptions(method, path string, opts ExecuteOptions) error {
 		}
 	}
 
-	_ = request.SaveLast(request.SavedRequest{
-		Method:  method,
-		Path:    path,
-		Headers: opts.Headers,
-		Query:   opts.Query,
-		Body:    bodyStr,
-	})
+	if !opts.SkipSaveLast {
+		_ = request.SaveLast(request.SavedRequest{
+			Method:  method,
+			Path:    path,
+			Headers: opts.Headers,
+			Query:   opts.Query,
+			Body:    bodyStr,
+		})
+	}
 
 	return nil
+}
+
+func executeSavedRequest(name string, baseOpts ExecuteOptions) error {
+	saved, err := request.Load(name)
+	if err != nil {
+		return fmt.Errorf("loading saved request %q: %w", name, err)
+	}
+
+	opts := baseOpts
+	opts.Headers = saved.Headers
+	opts.Query = saved.Query
+	opts.Body = saved.Body
+	opts.BodyFile = ""
+	opts.Form = nil
+	opts.URLEncoded = nil
+	opts.RequestName = name
+
+	if strings.EqualFold(saved.Method, "HEAD") && !opts.BodyOnly && !opts.Silent {
+		opts.HeadersOnly = true
+	}
+
+	return executeFromOptions(saved.Method, saved.Path, opts)
 }
 
 func executeRequest(cmd *cobra.Command, method string, args []string) error {

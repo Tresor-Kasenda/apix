@@ -25,7 +25,12 @@ type AuthConfig struct {
 	Type         string `mapstructure:"type"          yaml:"type"`
 	Token        string `mapstructure:"token"         yaml:"token,omitempty"`
 	TokenPath    string `mapstructure:"token_path"    yaml:"token_path,omitempty"`
+	HeaderName   string `mapstructure:"header_name"   yaml:"header_name,omitempty"`
 	HeaderFormat string `mapstructure:"header_format" yaml:"header_format,omitempty"`
+	LoginRequest string `mapstructure:"login_request" yaml:"login_request,omitempty"`
+	Username     string `mapstructure:"username"      yaml:"username,omitempty"`
+	Password     string `mapstructure:"password"      yaml:"password,omitempty"`
+	APIKey       string `mapstructure:"api_key"       yaml:"api_key,omitempty"`
 }
 
 func Load() (*Config, error) {
@@ -109,6 +114,27 @@ func overlayEnv(cfg *Config, envName string) error {
 		if envCfg.Auth.Token != "" {
 			cfg.Auth.Token = envCfg.Auth.Token
 		}
+		if envCfg.Auth.TokenPath != "" {
+			cfg.Auth.TokenPath = envCfg.Auth.TokenPath
+		}
+		if envCfg.Auth.HeaderName != "" {
+			cfg.Auth.HeaderName = envCfg.Auth.HeaderName
+		}
+		if envCfg.Auth.HeaderFormat != "" {
+			cfg.Auth.HeaderFormat = envCfg.Auth.HeaderFormat
+		}
+		if envCfg.Auth.LoginRequest != "" {
+			cfg.Auth.LoginRequest = envCfg.Auth.LoginRequest
+		}
+		if envCfg.Auth.Username != "" {
+			cfg.Auth.Username = envCfg.Auth.Username
+		}
+		if envCfg.Auth.Password != "" {
+			cfg.Auth.Password = envCfg.Auth.Password
+		}
+		if envCfg.Auth.APIKey != "" {
+			cfg.Auth.APIKey = envCfg.Auth.APIKey
+		}
 	}
 
 	for k, v := range envCfg.Variables {
@@ -174,15 +200,20 @@ func defaultAuthConfig(authType string) map[string]interface{} {
 		}
 	case "basic":
 		return map[string]interface{}{
-			"type": "basic",
+			"type":        "basic",
+			"header_name": "Authorization",
 		}
 	case "api_key":
 		return map[string]interface{}{
-			"type": "api_key",
+			"type":          "api_key",
+			"header_name":   "X-API-Key",
+			"header_format": "${API_KEY}",
 		}
 	case "custom":
 		return map[string]interface{}{
-			"type": "custom",
+			"type":          "custom",
+			"header_name":   "Authorization",
+			"header_format": "${TOKEN}",
 		}
 	case "bearer":
 		fallthrough
@@ -190,6 +221,7 @@ func defaultAuthConfig(authType string) map[string]interface{} {
 		return map[string]interface{}{
 			"type":          "bearer",
 			"token_path":    "data.token",
+			"header_name":   "Authorization",
 			"header_format": "Bearer ${TOKEN}",
 		}
 	}

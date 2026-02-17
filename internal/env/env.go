@@ -17,8 +17,15 @@ type EnvConfig struct {
 }
 
 type AuthOverride struct {
-	Type  string `yaml:"type,omitempty"`
-	Token string `yaml:"token,omitempty"`
+	Type         string `yaml:"type,omitempty"`
+	Token        string `yaml:"token,omitempty"`
+	TokenPath    string `yaml:"token_path,omitempty"`
+	HeaderName   string `yaml:"header_name,omitempty"`
+	HeaderFormat string `yaml:"header_format,omitempty"`
+	LoginRequest string `yaml:"login_request,omitempty"`
+	Username     string `yaml:"username,omitempty"`
+	Password     string `yaml:"password,omitempty"`
+	APIKey       string `yaml:"api_key,omitempty"`
 }
 
 func Load(name string) (*EnvConfig, error) {

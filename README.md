@@ -76,7 +76,42 @@ headers:
 auth:
   type: bearer
   token_path: data.token
+  header_name: Authorization
   header_format: "Bearer ${TOKEN}"
+  login_request: login
+```
+
+## Authentication
+
+Supported auth types:
+- `none`
+- `bearer`
+- `basic`
+- `api_key`
+- `custom`
+
+Example auth config:
+
+```yaml
+auth:
+  type: bearer
+  token_path: data.token
+  header_name: Authorization
+  header_format: "Bearer ${TOKEN}"
+  login_request: login
+
+  # basic
+  # username: my-user
+  # password: my-pass
+
+  # api_key
+  # api_key: my-api-key
+  # header_name: X-API-Key
+  # header_format: "${API_KEY}"
+
+  # custom
+  # header_name: X-Custom-Auth
+  # header_format: "Token ${TOKEN}"
 ```
 
 ## Environments
@@ -144,6 +179,10 @@ apix post /login -d '{"email": "test@test.com", "password": "pass"}'
 # Subsequent requests include the Bearer token
 apix get /protected/resource
 ```
+
+When a response returns `401 Unauthorized` and `auth.login_request` is set,
+apix automatically runs that saved login request, captures the new token, and
+retries the original request once.
 
 ## Variables
 

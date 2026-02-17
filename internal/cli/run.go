@@ -1,10 +1,8 @@
 package cli
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/Tresor-Kasend/apix/internal/request"
 	"github.com/spf13/cobra"
 )
 
@@ -16,11 +14,6 @@ func newRunCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-
-			saved, err := request.Load(name)
-			if err != nil {
-				return fmt.Errorf("loading saved request %q: %w", name, err)
-			}
 
 			timeoutSeconds, _ := cmd.Flags().GetInt("timeout")
 			noFollow, _ := cmd.Flags().GetBool("no-follow")
@@ -35,9 +28,6 @@ func newRunCmd() *cobra.Command {
 			flagVars := parseKeyValueSlice(varFlags, "=")
 
 			opts := ExecuteOptions{
-				Headers:     saved.Headers,
-				Query:       saved.Query,
-				Body:        saved.Body,
 				Vars:        flagVars,
 				Raw:         raw,
 				Verbose:     verbose,
@@ -49,11 +39,7 @@ func newRunCmd() *cobra.Command {
 				Timeout:     time.Duration(timeoutSeconds) * time.Second,
 			}
 
-			if saved.Method == "HEAD" && !opts.BodyOnly && !opts.Silent {
-				opts.HeadersOnly = true
-			}
-
-			return executeFromOptions(saved.Method, saved.Path, opts)
+			return executeSavedRequest(name, opts)
 		},
 	}
 
