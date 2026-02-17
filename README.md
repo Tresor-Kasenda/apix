@@ -173,6 +173,34 @@ apix rename login auth-login
 apix delete auth-login --saved
 ```
 
+Chain multiple saved requests with captured variables:
+
+```yaml
+# requests/login.yaml
+name: login
+method: POST
+path: /login
+body: '{"email":"test@test.com","password":"pass"}'
+capture:
+  TOKEN: data.token
+  USER_ID: data.user.id
+```
+
+```yaml
+# requests/get-profile.yaml
+name: get-profile
+method: GET
+path: /users/${USER_ID}
+headers:
+  Authorization: "Bearer ${TOKEN}"
+```
+
+```bash
+apix chain login get-profile
+apix chain login get-profile --env staging
+apix chain login get-profile -V "TENANT=acme"
+```
+
 ## Auto Token Capture
 
 When `auth.token_path` is configured, apix automatically captures tokens from
@@ -229,6 +257,7 @@ apix get /users/${USER_ID} -V "USER_ID=42"
 | `apix env delete <name>` | Delete an environment              |
 | `apix save <name>`       | Save last request                  |
 | `apix run <name>`        | Run saved request                  |
+| `apix chain <req1> <req2> [...]` | Run saved requests sequentially with variable capture |
 | `apix list`              | List saved requests                |
 | `apix show <name>`       | Show a saved request YAML          |
 | `apix rename <old> <new>`| Rename a saved request             |
@@ -241,6 +270,7 @@ apix get /users/${USER_ID} -V "USER_ID=42"
 | `--header`        | `-H`  | Add header (key:value)          |
 | `--query`         | `-q`  | Add query param (key=value)     |
 | `--var`           | `-V`  | Set variable (key=value)        |
+| `--env`           |       | Use a specific environment for `run`/`chain` only |
 | `--data`          | `-d`  | Request body (JSON string)      |
 | `--file`          | `-f`  | Request body from file          |
 | `--form`          |       | Multipart field (key=value or key=@file) |

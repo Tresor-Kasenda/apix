@@ -17,6 +17,27 @@ type SavedRequest struct {
 	Headers map[string]string `yaml:"headers,omitempty"`
 	Query   map[string]string `yaml:"query,omitempty"`
 	Body    string            `yaml:"body,omitempty"`
+	Capture map[string]string `yaml:"capture,omitempty"`
+	Expect  *Expect           `yaml:"expect,omitempty"`
+}
+
+type AssertionRule map[string]interface{}
+
+type Expect struct {
+	Status       AssertionRule            `yaml:"status,omitempty"`
+	Body         map[string]AssertionRule `yaml:"body,omitempty"`
+	Headers      map[string]AssertionRule `yaml:"headers,omitempty"`
+	ResponseTime AssertionRule            `yaml:"response_time,omitempty"`
+}
+
+func (r SavedRequest) HasExpect() bool {
+	if r.Expect == nil {
+		return false
+	}
+	return len(r.Expect.Status) > 0 ||
+		len(r.Expect.Body) > 0 ||
+		len(r.Expect.Headers) > 0 ||
+		len(r.Expect.ResponseTime) > 0
 }
 
 func Save(name string, req SavedRequest) error {
@@ -39,14 +60,22 @@ func Save(name string, req SavedRequest) error {
 
 func Load(name string) (*SavedRequest, error) {
 	path := filepath.Join("requests", name+".yaml")
-	data, err := os.ReadFile(path)
+	req, err := LoadFromPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("loading request %q: %w", name, err)
+	}
+	return req, nil
+}
+
+func LoadFromPath(path string) (*SavedRequest, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
 
 	var req SavedRequest
 	if err := yaml.Unmarshal(data, &req); err != nil {
-		return nil, fmt.Errorf("parsing request %q: %w", name, err)
+		return nil, fmt.Errorf("parsing request file %q: %w", path, err)
 	}
 	return &req, nil
 }

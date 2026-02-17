@@ -48,6 +48,7 @@ func rootCmd() *cobra.Command {
 		newEnvCmd(),
 		newSaveCmd(),
 		newRunCmd(),
+		newChainCmd(),
 		newListCmd(),
 		newShowCmd(),
 		newRenameCmd(),
@@ -84,20 +85,21 @@ type ExecuteOptions struct {
 }
 
 func executeFromOptions(method, path string, opts ExecuteOptions) error {
-	return executeFromOptionsInternal(method, path, opts, false)
+	_, err := executeFromOptionsInternal(method, path, opts, false)
+	return err
 }
 
-func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alreadyRetried bool) error {
+func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alreadyRetried bool) (*apixhttp.Response, error) {
 	if err := validateDisplayModes(opts); err != nil {
-		return err
+		return nil, err
 	}
 	if err := validateBodyModes(opts); err != nil {
-		return err
+		return nil, err
 	}
 
 	cfg, err := config.LoadWithEnvOverride(opts.EnvOverride)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	urlStr := buildURL(cfg.BaseURL, path)
@@ -117,7 +119,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 		headers[k] = request.ResolveVariables(v, vars)
 	}
 	if err := apixauth.Apply(headers, cfg, vars); err != nil {
-		return err
+		return nil, err
 	}
 
 	query := make(map[string]string)
@@ -127,7 +129,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 
 	bodyReader, bodyStr, contentType, err := buildRequestBody(opts, vars)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if contentType != "" && !hasHeader(opts.Headers, "Content-Type") {
 		headers["Content-Type"] = contentType
@@ -151,7 +153,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 		Body:    bodyReader,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	shouldRetry, refreshErr := apixauth.RefreshIfNeeded(
@@ -176,7 +178,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 		},
 	)
 	if refreshErr != nil {
-		return refreshErr
+		return nil, refreshErr
 	}
 	if shouldRetry {
 		if !opts.Silent && !opts.BodyOnly && !opts.HeadersOnly {
@@ -185,14 +187,14 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 		return executeFromOptionsInternal(method, path, opts, true)
 	}
 	if alreadyRetried && resp.StatusCode == 401 && cfg.Auth.LoginRequest != "" && !opts.SkipAutoRefresh {
-		return fmt.Errorf("request is still unauthorized after automatic re-authentication")
+		return nil, fmt.Errorf("request is still unauthorized after automatic re-authentication")
 	}
 	if opts.FailOnHTTPError && resp.StatusCode >= 400 {
-		return fmt.Errorf("request failed with status %d %s", resp.StatusCode, resp.Status)
+		return nil, fmt.Errorf("request failed with status %d %s", resp.StatusCode, resp.Status)
 	}
 
 	if err := writeOutputFile(opts.OutputFile, resp.Body); err != nil {
-		return err
+		return nil, err
 	}
 
 	shouldPrintStatus := !opts.SuppressOutput && !opts.Silent && !opts.BodyOnly
@@ -231,13 +233,18 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 		})
 	}
 
-	return nil
+	return resp, nil
 }
 
 func executeSavedRequest(name string, baseOpts ExecuteOptions) error {
+	_, err := executeSavedRequestWithResponse(name, baseOpts)
+	return err
+}
+
+func executeSavedRequestWithResponse(name string, baseOpts ExecuteOptions) (*apixhttp.Response, error) {
 	saved, err := request.Load(name)
 	if err != nil {
-		return fmt.Errorf("loading saved request %q: %w", name, err)
+		return nil, fmt.Errorf("loading saved request %q: %w", name, err)
 	}
 
 	opts := baseOpts
@@ -253,7 +260,15 @@ func executeSavedRequest(name string, baseOpts ExecuteOptions) error {
 		opts.HeadersOnly = true
 	}
 
-	return executeFromOptions(saved.Method, saved.Path, opts)
+	resp, err := executeFromOptionsWithResponse(saved.Method, saved.Path, opts)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func executeFromOptionsWithResponse(method, path string, opts ExecuteOptions) (*apixhttp.Response, error) {
+	return executeFromOptionsInternal(method, path, opts, false)
 }
 
 func executeRequest(cmd *cobra.Command, method string, args []string) error {
