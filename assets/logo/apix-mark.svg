@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">apix logo mark</title>
+  <desc id="desc">Rounded square with code brackets and a stylized X.</desc>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#g)"/>
+  <rect x="36" y="36" width="184" height="184" rx="40" fill="#ffffff" fill-opacity="0.10"/>
+
+  <path d="M90 72 L58 128 L90 184" fill="none" stroke="#e6fffb" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M166 72 L198 128 L166 184" fill="none" stroke="#e6fffb" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <path d="M110 86 L146 170" fill="none" stroke="#082f49" stroke-width="14" stroke-linecap="round"/>
+  <path d="M146 86 L110 170" fill="none" stroke="#082f49" stroke-width="14" stroke-linecap="round"/>
+</svg>

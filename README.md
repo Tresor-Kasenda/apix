@@ -1,5 +1,12 @@
 # apix
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/apix-logo-dark.svg">
+    <img src="assets/logo/apix-logo.svg" alt="apix logo" width="560">
+  </picture>
+</p>
+
 A modern, framework-agnostic CLI API tester for terminal-first developers.
 Replaces Postman, curl, and httpie with a simple, powerful workflow.
 
