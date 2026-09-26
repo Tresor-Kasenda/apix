@@ -4,13 +4,16 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/Tresor-Kasend/apix/internal/project"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
-const filePath = ".apix/history.jsonl"
+func filePath() string {
+	return project.StatePath("history.jsonl")
+}
 
 type Entry struct {
 	Method       string    `json:"method"`
@@ -22,7 +25,7 @@ type Entry struct {
 }
 
 func Append(entry Entry) error {
-	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filePath()), 0o755); err != nil {
 		return fmt.Errorf("creating history directory: %w", err)
 	}
 
@@ -35,7 +38,7 @@ func Append(entry Entry) error {
 		return fmt.Errorf("encoding history entry: %w", err)
 	}
 
-	f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(filePath(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("opening history file: %w", err)
 	}
@@ -49,7 +52,7 @@ func Append(entry Entry) error {
 }
 
 func Read(limit int) ([]Entry, error) {
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -91,7 +94,7 @@ func Read(limit int) ([]Entry, error) {
 }
 
 func Clear() error {
-	if err := os.Remove(filePath); err != nil {
+	if err := os.Remove(filePath()); err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}

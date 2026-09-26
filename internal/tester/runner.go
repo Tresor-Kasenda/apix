@@ -13,8 +13,6 @@ import (
 	"github.com/Tresor-Kasend/apix/internal/request"
 )
 
-const defaultRequestsDir = "requests"
-
 type ExecuteFunc func(name string, saved *request.SavedRequest, vars map[string]string, envOverride string) (*apixhttp.Response, error)
 
 type RunnerOptions struct {

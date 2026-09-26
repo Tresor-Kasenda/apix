@@ -17,7 +17,11 @@ Replaces Postman, curl, and httpie with a simple, powerful workflow.
   <a href="https://github.com/Tresor-Kasenda/apix/blob/main/go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/Tresor-Kasenda/apix"></a>
 </p>
 
-`apix` is built for developers who prefer terminal + Git workflows:
+`apix` is built for developers who prefer terminal + Git workflows, and plugs into
+**any** HTTP API project — whatever the language, framework or repository layout:
+- Bootstrap from an OpenAPI/Swagger spec or from your source code (`apix init`)
+- Reuse your existing `.env` files and CI environment variables (`${VAR}`)
+- Run from any sub-directory, monorepos included (like `git`)
 - Save API requests as versioned files (`requests/*.yaml`)
 - Run chained flows with variable capture (`apix chain`)
 - Add assertions and run API checks in CI (`apix test`)
@@ -86,6 +90,7 @@ apix test
 ```
 
 Then explore:
+- `apix import openapi <file-or-url>` to import every endpoint of any API
 - `apix chain` for end-to-end API flows
 - `apix import` / `apix export` for migration from curl/Postman/Insomnia
 - `apix watch` for fast edit-and-rerun loops
@@ -116,6 +121,84 @@ Dry-run tap publication without push:
 
 ```bash
 TAP_REPO=Tresor-Kasenda/homebrew-tap DRY_RUN=1 make dist-brew-publish
+```
+
+## Works With Any Project
+
+apix makes no assumption about your stack. Everything it needs comes from four
+universal sources, in this order of preference:
+
+1. **An OpenAPI / Swagger document** — the framework-agnostic route source.
+2. **Your `.env` files and OS environment** — for base URLs, ports and secrets.
+3. **Source-code detection** — for 30+ frameworks, when no spec exists.
+4. **Explicit flags / `apix.yaml`** — always win.
+
+### Project discovery (monorepos & sub-directories)
+
+Like `git`, apix walks up from the current directory until it finds an
+`apix.yaml`. `requests/`, `env/` and `.apix/` always resolve against that
+project root, so every command works from `backend/src/controllers/` as well as
+from the root. Set `APIX_PROJECT_DIR` to force a root.
+
+`apix init` also looks inside conventional monorepo folders (`backend/`, `api/`,
+`server/`, `apps/`, `services/`, ...) when nothing is found at the root.
+
+### Detected frameworks
+
+| Language | Frameworks |
+|----------|------------|
+| PHP | Laravel / Lumen, Symfony, Slim, CakePHP, CodeIgniter, Yii, Laminas / Mezzio |
+| Python | Django (+ DRF), FastAPI, Flask |
+| JavaScript / TypeScript | NestJS, AdonisJS, Hono, Koa, Express, Fastify |
+| Go | Gin, Chi, Echo, Fiber, Gorilla Mux, `net/http` (Go 1.22+ patterns) |
+| Java / Kotlin | Spring Boot, Quarkus, Micronaut, Ktor |
+| C# | ASP.NET Core (controllers + minimal APIs) |
+| Ruby | Rails, Sinatra |
+| Rust | Actix, Axum, Rocket |
+| Elixir | Phoenix |
+| Swift | Vapor |
+
+Not listed? Point apix at your OpenAPI document (`apix init --spec ...` or
+`apix import openapi ...`) or simply pass `--base-url`: nothing else is needed.
+
+Detected route parameters are normalized into apix variables:
+`/users/{id}`, `/users/:id` and `/users/<int:id>` all become `/users/${id}`.
+
+### Base URL detection
+
+`apix init` proposes a base URL from, in order:
+
+1. `APIX_BASE_URL`, `API_BASE_URL`, `API_URL` or `BASE_URL` in `.env`
+2. `APP_URL` in `.env` (+ the framework API prefix, e.g. `/api` for Laravel)
+3. `PORT`, `APP_PORT`, `SERVER_PORT`, `HTTP_PORT` or `API_PORT` in `.env`
+4. `server.port` in Spring's `application.properties`
+5. The framework's default dev port (8000 Django/Laravel, 3000 Node, 8080 Go/Java, 5000 .NET, ...)
+
+### Non-interactive setup (CI, scripts, Docker)
+
+Prompts are skipped with `--yes` or automatically when stdin is not a terminal:
+
+```bash
+apix init --yes
+apix init --name shop --base-url http://localhost:3000 --auth none -y
+apix init --spec http://localhost:8000/openapi.json -y
+```
+
+### Runtime overrides
+
+| Environment variable | Effect |
+|----------------------|--------|
+| `APIX_ENV`           | Selects the environment (like `apix env use`, without editing files) |
+| `APIX_BASE_URL`      | Overrides the base URL for every request |
+| `APIX_PROJECT_DIR`   | Forces the project root instead of searching upward |
+
+```yaml
+# .github/workflows/api.yml (excerpt)
+- run: apix test
+  env:
+    APIX_ENV: ci
+    APIX_BASE_URL: http://localhost:8080
+    API_TOKEN: ${{ secrets.API_TOKEN }}   # referenced as ${API_TOKEN} in apix.yaml
 ```
 
 ## Extended Quick Start
@@ -154,18 +237,20 @@ apix env delete staging --force
 ## Project Configuration
 
 Run `apix init` to create an `apix.yaml` in your project.
-The command prompts for:
+The command prompts for (or accepts as flags `--name`, `--base-url`, `--auth`):
 - project name (default: current directory name)
-- base URL (default: framework-based suggestion)
+- base URL (default: detected, see [Base URL detection](#base-url-detection))
 - auth type (`none`, `bearer`, `basic`, `api_key`, `custom`)
 
-`apix init` also ensures `.apix/` is present in `.gitignore`.
+It then imports routes from an OpenAPI document (`--spec`, or one found in the
+project such as `openapi.yaml`, `docs/swagger.json`, `storage/api-docs/api-docs.json`),
+falling back to source-code route detection. `.apix/` is added to `.gitignore`.
 
-Example generated config:
+Example config:
 
 ```yaml
 project: my-api
-base_url: http://localhost:8000/api
+base_url: ${APP_URL:-http://localhost:8000}/api   # variables work here too
 timeout: 30
 current_env: dev
 headers:
@@ -173,11 +258,18 @@ headers:
   Accept: application/json
 auth:
   type: bearer
-  token_path: data.token
+  token_path: access_token|token|data.token   # first match wins
   header_name: Authorization
   header_format: "Bearer ${TOKEN}"
   login_request: login
+
+# Optional: adapt apix to an existing repository layout
+requests_dir: tests/http        # default: requests
+env_dir: tests/http/env         # default: env
+dotenv: [.env, .env.testing]    # default: [.env, .env.local]
 ```
+
+Editing commands such as `apix env use` preserve your comments and key order.
 
 ## Authentication
 
@@ -187,6 +279,10 @@ Supported auth types:
 - `basic`
 - `api_key`
 - `custom`
+
+Credentials support variables, so secrets can stay in `.env` or CI secrets
+instead of being committed. A credential whose variable is undefined is never
+sent as a literal `${VAR}`.
 
 Example auth config:
 
@@ -199,11 +295,11 @@ auth:
   login_request: login
 
   # basic
-  # username: my-user
-  # password: my-pass
+  # username: ${API_USERNAME}
+  # password: ${API_PASSWORD}
 
   # api_key
-  # api_key: my-api-key
+  # api_key: ${API_KEY}
   # header_name: X-API-Key
   # header_format: "${API_KEY}"
 
@@ -237,7 +333,9 @@ apix env delete staging
 apix env delete staging --force
 ```
 
-Environment files live in `env/<name>.yaml`:
+Environment files live in `env/<name>.yaml` (or `env_dir`). Every key is
+optional: a new environment inherits everything from `apix.yaml` until you
+override it.
 
 ```yaml
 base_url: https://staging.api.example.com
@@ -338,7 +436,9 @@ Hook behavior:
 ## Auto Token Capture
 
 When `auth.token_path` is configured, apix automatically captures tokens from
-responses. After a login request, the token is saved and used in subsequent
+responses. Separate several candidate paths with `|` to support different API
+conventions (`access_token|token|data.token`); array indexes are supported too
+(`data.0.token`). After a login request, the token is saved and used in subsequent
 requests:
 
 ```bash
@@ -356,11 +456,23 @@ retries the original request once.
 
 ## Variables
 
-Use `${VAR}` syntax in URLs, headers, and request bodies:
+Use `${VAR}` syntax in the base URL, paths, headers, query params, bodies and
+auth credentials. `${VAR:-default}` provides a fallback value.
+
+Resolution order (first match wins):
+
+1. `--var` / `-V` flags and values captured by `chain` / hooks
+2. Built-ins: `${TOKEN}`, `${TIMESTAMP}`, `${UUID}`, `${RANDOM}`
+3. `variables` of the active environment (`env/<name>.yaml`)
+4. `variables` of `apix.yaml`
+5. OS environment variables (CI secrets, shell exports)
+6. `.env` files of the project (`dotenv` setting)
+7. The inline default of `${VAR:-default}`
 
 | Variable      | Description                     |
 |---------------|---------------------------------|
-| `${VAR}`      | From environment or `--var` flag |
+| `${VAR}`      | From flags, config, OS environment or `.env` |
+| `${VAR:-x}`   | Same, with `x` as fallback      |
 | `${TOKEN}`    | Auto-captured auth token        |
 | `${TIMESTAMP}`| Current Unix timestamp          |
 | `${UUID}`     | Generated UUID v4               |
@@ -369,6 +481,7 @@ Use `${VAR}` syntax in URLs, headers, and request bodies:
 ```bash
 apix post /events -d '{"id": "${UUID}", "ts": "${TIMESTAMP}"}'
 apix get /users/${USER_ID} -V "USER_ID=42"
+apix get '/search?q=${QUERY:-golang}'
 ```
 
 ## Testing With Assertions
@@ -449,6 +562,13 @@ Standard status output now includes response duration and body size.
 Import from external tools/formats:
 
 ```bash
+# Import every operation of an OpenAPI 3 / Swagger 2 document (JSON or YAML, file or URL)
+apix import openapi openapi.yaml
+apix import openapi http://localhost:8000/openapi.json      # FastAPI
+apix import openapi http://localhost:3000/api-json          # NestJS
+apix import openapi http://localhost:8080/v3/api-docs       # Spring
+apix import openapi swagger.json --with-base-path           # prefix paths with the spec base path
+
 # Import from Postman collection JSON
 apix import postman collection.json
 
@@ -497,7 +617,7 @@ By default, cookies are persisted between requests in `.apix/cookies.jar`.
 
 | Command                  | Description                        |
 |--------------------------|------------------------------------|
-| `apix init`              | Initialize a new project           |
+| `apix init`              | Initialize a new project (`--yes`, `--name`, `--base-url`, `--auth`, `--spec`, `--no-detect`) |
 | `apix get <path>`        | Send GET request                   |
 | `apix post <path>`       | Send POST request                  |
 | `apix put <path>`        | Send PUT request                   |
@@ -518,6 +638,7 @@ By default, cookies are persisted between requests in `.apix/cookies.jar`.
 | `apix watch <name>`      | Re-run a saved request on file changes (`--interval` for polling) |
 | `apix history`           | Show request execution history (`--limit`, `--clear`) |
 | `apix config show`       | Show merged active configuration |
+| `apix import openapi <file-or-url>` | Import an OpenAPI 3 / Swagger 2 spec |
 | `apix import postman <file>` | Import a Postman collection |
 | `apix import insomnia <file>` | Import an Insomnia export |
 | `apix import curl "<cmd>"` | Import one curl command |

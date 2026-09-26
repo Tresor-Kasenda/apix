@@ -2,6 +2,7 @@ package request
 
 import (
 	"fmt"
+	"github.com/Tresor-Kasend/apix/internal/project"
 	"os"
 	"path/filepath"
 	"sort"
@@ -48,7 +49,7 @@ func (r SavedRequest) HasExpect() bool {
 }
 
 func Save(name string, req SavedRequest) error {
-	if err := os.MkdirAll("requests", 0o755); err != nil {
+	if err := os.MkdirAll(project.RequestsDir(), 0o755); err != nil {
 		return fmt.Errorf("creating requests directory: %w", err)
 	}
 
@@ -58,7 +59,7 @@ func Save(name string, req SavedRequest) error {
 		return fmt.Errorf("marshaling request: %w", err)
 	}
 
-	path := filepath.Join("requests", name+".yaml")
+	path := filepath.Join(project.RequestsDir(), name+".yaml")
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("writing request file: %w", err)
 	}
@@ -66,7 +67,7 @@ func Save(name string, req SavedRequest) error {
 }
 
 func Load(name string) (*SavedRequest, error) {
-	path := filepath.Join("requests", name+".yaml")
+	path := filepath.Join(project.RequestsDir(), name+".yaml")
 	req, err := LoadFromPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("loading request %q: %w", name, err)
@@ -88,7 +89,7 @@ func LoadFromPath(path string) (*SavedRequest, error) {
 }
 
 func SaveLast(req SavedRequest) error {
-	if err := os.MkdirAll(".apix", 0o755); err != nil {
+	if err := os.MkdirAll(project.StateDir(), 0o755); err != nil {
 		return fmt.Errorf("creating .apix directory: %w", err)
 	}
 
@@ -97,7 +98,7 @@ func SaveLast(req SavedRequest) error {
 		return fmt.Errorf("marshaling last request: %w", err)
 	}
 
-	path := filepath.Join(".apix", "last_request.yaml")
+	path := project.StatePath("last_request.yaml")
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("saving last request: %w", err)
 	}
@@ -105,7 +106,7 @@ func SaveLast(req SavedRequest) error {
 }
 
 func LoadLast() (*SavedRequest, error) {
-	path := filepath.Join(".apix", "last_request.yaml")
+	path := project.StatePath("last_request.yaml")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("no last request found: %w", err)
@@ -119,7 +120,7 @@ func LoadLast() (*SavedRequest, error) {
 }
 
 func ListSaved() ([]string, error) {
-	entries, err := os.ReadDir("requests")
+	entries, err := os.ReadDir(project.RequestsDir())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -142,7 +143,7 @@ func ListSaved() ([]string, error) {
 }
 
 func Delete(name string) error {
-	path := filepath.Join("requests", name+".yaml")
+	path := filepath.Join(project.RequestsDir(), name+".yaml")
 	if err := os.Remove(path); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("request %q does not exist", name)
@@ -157,8 +158,8 @@ func Rename(oldName, newName string) error {
 		return fmt.Errorf("old and new request names must be different")
 	}
 
-	oldPath := filepath.Join("requests", oldName+".yaml")
-	newPath := filepath.Join("requests", newName+".yaml")
+	oldPath := filepath.Join(project.RequestsDir(), oldName+".yaml")
+	newPath := filepath.Join(project.RequestsDir(), newName+".yaml")
 
 	if _, err := os.Stat(oldPath); err != nil {
 		if os.IsNotExist(err) {
@@ -179,7 +180,7 @@ func Rename(oldName, newName string) error {
 }
 
 func ReadRaw(name string) (string, error) {
-	path := filepath.Join("requests", name+".yaml")
+	path := filepath.Join(project.RequestsDir(), name+".yaml")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

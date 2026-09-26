@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/Tresor-Kasend/apix/internal/project"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -27,7 +28,7 @@ func newWatchCmd() *cobra.Command {
 				return fmt.Errorf("request name is required")
 			}
 
-			watchPath := filepath.Join("requests", name+".yaml")
+			watchPath := filepath.Join(project.RequestsDir(), name+".yaml")
 			if _, err := os.Stat(watchPath); err != nil {
 				return fmt.Errorf("watch target %q not found: %w", watchPath, err)
 			}

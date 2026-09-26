@@ -8,7 +8,20 @@ import (
 var (
 	paramPattern    = regexp.MustCompile(`[:{<](\w+)[}>]?`)
 	nonAlphaPattern = regexp.MustCompile(`[^a-zA-Z0-9]+`)
+
+	bracePathParam = regexp.MustCompile(`\{(\w+)[^}]*\}`)   // {id}, {id?}, {id:\d+}
+	anglePathParam = regexp.MustCompile(`<(?:\w+:)?(\w+)>`) // <id>, <int:id>
+	colonPathParam = regexp.MustCompile(`(^|/):(\w+)`)      // :id
 )
+
+// NormalizePathParams rewrites framework-specific path parameters into apix
+// variables so detected routes are directly runnable with --var:
+// "/users/{id}", "/users/:id" and "/users/<int:id>" all become "/users/${id}".
+func NormalizePathParams(path string) string {
+	path = bracePathParam.ReplaceAllString(path, "$${$1}")
+	path = anglePathParam.ReplaceAllString(path, "$${$1}")
+	return colonPathParam.ReplaceAllString(path, "$1$${$2}")
+}
 
 // SanitizeName converts a method and path into a safe filename.
 // Example: "GET", "/users/:id" -> "get-users-id"
