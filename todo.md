@@ -1,317 +1,240 @@
-Voici la liste complète des fonctionnalités pour la v0.1.0 d'apix, organisées par priorité.
+# apix — TODO
+
+Liste de tout ce qui reste à faire : corrections, sécurité, fonctionnalités
+manquantes, qualité, CI/release, documentation et contenu.
+
+Chaque tâche indique **où** intervenir et **quand la considérer comme terminée**
+(critère d'acceptation).
+
+**Légende des priorités**
+
+| Priorité | Signification |
+|----------|---------------|
+| 🔴 P0 | Bloquant ou bug visible par les utilisateurs : à faire avant la prochaine release |
+| 🟠 P1 | Important : corrige une incohérence ou complète une fonctionnalité promise |
+| 🟡 P2 | Amélioration notable de l'expérience ou de la robustesse |
+| 🟢 P3 | Bonus, idées pour les versions suivantes |
 
 ---
 
-## Tier 1 — Core (sans ça, l'outil ne sert à rien)
+## 1. Bugs et corrections
 
-**Requêtes HTTP de base**
-- `apix get <path>` — envoie un GET
-- `apix post <path>` — envoie un POST avec body
-- `apix put <path>` — envoie un PUT avec body
-- `apix patch <path>` — envoie un PATCH avec body
-- `apix delete <path>` — envoie un DELETE
-- `apix head <path>` — envoie un HEAD (retourne uniquement les headers)
-- `apix options <path>` — envoie un OPTIONS (utile pour CORS debugging)
+### 🔴 P0 — Chemin du module Go incohérent avec le dépôt
+- **Problème** : `go.mod` déclare `github.com/Tresor-Kasend/apix`, mais le dépôt est `github.com/Tresor-Kasenda/apix`. Du coup `go install github.com/Tresor-Kasenda/apix/cmd/apix@latest` échoue.
+- **Où** : `go.mod`, tous les imports `github.com/Tresor-Kasend/apix/...`, `Makefile` (`MODULE`).
+- **Fait quand** : `go install github.com/Tresor-Kasenda/apix/cmd/apix@latest` fonctionne et le README documente cette méthode d'installation.
 
-**Options de body**
-- `--data` / `-d` — body JSON inline : `apix post /users -d '{"name":"John"}'`
-- `--file` / `-f` — body depuis un fichier : `apix post /users -f payload.json`
-- `--form` — envoie en `multipart/form-data` : `apix post /upload --form file=@photo.jpg`
-- `--urlencoded` — envoie en `application/x-www-form-urlencoded`
+### 🔴 P0 — Le token capturé est partagé entre tous les environnements
+- **Problème** : `.apix/token` est un fichier unique. Après `apix env use prod`, le token de `dev` est encore injecté, ce qui peut fuiter vers le mauvais serveur.
+- **Où** : `internal/config/config.go` (`SaveToken`, `loadToken`).
+- **Fait quand** : le token est stocké par environnement (`.apix/tokens/<env>`), avec une migration de l'ancien fichier et un test couvrant le changement d'environnement.
 
-**Options de requête**
-- `--header` / `-H` — ajoute un header (repeatable) : `apix get /users -H "X-Custom: value"`
-- `--query` / `-q` — query parameters : `apix get /users -q "page=2&limit=10"`
-- `--timeout` / `-t` — timeout en secondes (override config)
-- `--no-follow` — ne pas suivre les redirections
+### 🟠 P1 — Viper met les noms d'en-têtes en minuscules
+- **Problème** : dans `headers:`, `Content-Type` devient `content-type`, ce qui est visible dans `apix config show`. Certains serveurs non conformes y sont sensibles.
+- **Où** : `internal/config/config.go` (`loadBase`). Option : décoder `apix.yaml` avec `yaml.v3` au lieu de viper, qui n'apporte rien ici.
+- **Fait quand** : la casse des clés `headers` et `variables` est préservée, avec un test.
 
-**Options d'affichage**
-- `--verbose` / `-v` — affiche la requête complète envoyée + réponse complète
-- `--raw` — affiche le body brut sans formatting
-- `--headers-only` — affiche uniquement les headers de réponse
-- `--body-only` — affiche uniquement le body (utile pour piping)
-- `--silent` / `-s` — aucun output sauf le body (pour scripts)
-- `--output` / `-o` — sauvegarde la réponse dans un fichier
+### 🟠 P1 — Un body YAML structuré est refusé
+- **Problème** : `SavedRequest.Body` est un `string`. Un body écrit en YAML (`body: {name: John}`), pourtant prévu dans la spec, provoque une erreur de parsing.
+- **Où** : `internal/request/collection.go` (type `SavedRequest`), `internal/cli/root.go` (`buildRequestBody`).
+- **Fait quand** : `body` accepte une chaîne **ou** une map/liste, sérialisée en JSON à l'envoi, avec des variables résolues à l'intérieur des valeurs.
 
----
+### 🟠 P1 — Les routes `web.php` de Laravel héritent du préfixe `/api`
+- **Problème** : `apix init` propose `http://localhost:8000/api`, mais les routes de `routes/web.php` ne sont pas servies sous `/api`.
+- **Où** : `internal/detect/patterns.go` et `internal/cli/init_cmd.go`.
+- **Fait quand** : seules les routes de `routes/api.php` sont enregistrées, ou bien les routes web sont préfixées par une URL absolue ou ignorées, avec un test.
 
-## Tier 2 — Project Intelligence (ce qui différencie apix de curl)
+### 🟠 P1 — Collisions de noms entre routes détectées
+- **Problème** : deux routes différentes peuvent donner le même nom de fichier (ex. `GET /users/{id}` et `GET /users/:id` dans deux fichiers). La seconde écrase la première sans avertissement.
+- **Où** : `internal/cli/init_cmd.go` (`saveDetectedRoutes`).
+- **Fait quand** : on réutilise `uniqueRequestName` (déjà utilisé par l'import) et le nombre de routes affiché correspond au nombre de fichiers créés.
 
-**Initialisation de projet**
-- `apix init` — crée `apix.yaml`, `requests/`, `env/`, `.apix/`
-- Demande interactivement : nom du projet, base URL, type d'auth
-- Génère un `env/dev.yaml` par défaut
-- Ajoute `.apix/` au `.gitignore`
+### 🟡 P2 — Faux positifs dans la détection de routes par regex
+- **Problème** : les motifs Rails, Sinatra, Yii et Phoenix capturent n'importe quelle chaîne `get '/...'`, y compris dans les tests, les specs et les commentaires.
+- **Où** : `internal/detect/patterns.go`, `internal/detect/scanner.go`.
+- **Fait quand** : les dossiers `test/`, `tests/`, `spec/` et `__tests__/` sont ignorés, les lignes commentées sont exclues, et un test par framework vérifie l'absence de faux positif.
 
-**Configuration projet (apix.yaml)**
-- `project` — nom du projet
-- `base_url` — URL de base pour toutes les requêtes
-- `headers` — headers par défaut appliqués à chaque requête
-- `timeout` — timeout global en secondes
-- `auth` — configuration d'authentification
+### 🟡 P2 — Le retry automatique rejoue des requêtes non idempotentes
+- **Problème** : `--retry` relance aussi `POST` et `PATCH` sur une réponse 5xx, ce qui peut créer des doublons côté serveur.
+- **Où** : `internal/http/client.go`.
+- **Fait quand** : par défaut, seuls `GET`, `HEAD`, `OPTIONS`, `PUT` et `DELETE` sont rejoués sur 5xx (les erreurs réseau restent rejouées), et une option `--retry-all` permet de forcer le comportement actuel.
 
-**Gestion des environnements**
-- `apix env use <name>` — active un environnement
-- `apix env list` — liste tous les environnements disponibles
-- `apix env show` — affiche l'env actif avec toutes ses variables
-- `apix env create <name>` — crée un nouvel environnement
-- `apix env delete <name>` — supprime un environnement (avec confirmation)
-- `apix env copy <source> <dest>` — duplique un env
-- Chaque env override : base_url, headers, variables, auth
+### 🟡 P2 — Code dupliqué pour la validation du body
+- **Où** : `internal/cli/root.go`. `validateBodyModes` et le début de `buildRequestBody` comptent les modes de body de la même façon.
+- **Fait quand** : une seule fonction assure ce contrôle.
 
-**Variables**
-- `${VAR}` — résolue depuis l'env actif ou le flag `--var`
-- `${TOKEN}` — token capturé automatiquement
-- `${TIMESTAMP}` — timestamp Unix actuel
-- `${ISO_DATE}` — date ISO 8601 actuelle
-- `${UUID}` — UUID v4 généré à chaque exécution
-- `${RANDOM}` — nombre aléatoire
-- `${RANDOM_EMAIL}` — email aléatoire pour les tests
-- `--var` / `-V` — override de variable en ligne : `apix get /users/${id} -V id=5`
-- Résolution dans : path, headers, body, query params
+### 🟡 P2 — `apix delete` a un double sens
+- **Problème** : `apix delete <path>` envoie une requête HTTP DELETE, mais `apix delete <name> --saved` supprime un fichier. Un oubli du flag envoie une vraie requête DELETE.
+- **Fait quand** : une commande dédiée `apix rm <name>` (ou `apix requests delete`) existe, et `--saved` est déprécié avec un message d'avertissement.
 
 ---
 
-## Tier 3 — Auth Intelligence (la killer feature)
+## 2. Sécurité
 
-**Auto auth capture**
-- Après chaque POST, parse le body JSON
-- Cherche le token au `token_path` défini dans config (ex: `data.token`, `access_token`, `key`)
-- Si trouvé, sauvegarde dans `.apix/token`
-- Affiche `✓ Token captured and saved`
-- Toutes les requêtes suivantes injectent ce token automatiquement
+### 🔴 P0 — `apix config show` affiche les secrets en clair
+- **Où** : `internal/cli/config_show.go`. Les champs `auth.token`, `auth.password` et `auth.api_key` sont imprimés tels quels.
+- **Fait quand** : ces valeurs sont masquées (`abc1…****`) par défaut, un flag `--reveal` les affiche, et un test le vérifie.
 
-**Types d'auth supportés**
-- `bearer` — `Authorization: Bearer <token>`
-- `basic` — `Authorization: Basic <base64(user:pass)>`
-- `api_key` — header custom (ex: `X-API-Key: <key>`)
-- `custom` — header et format entièrement personnalisables
+### 🟠 P1 — L'historique enregistre les URL résolues
+- **Problème** : `.apix/history.jsonl` stocke l'URL finale, donc des secrets passés en query (`?api_key=${KEY}`) y apparaissent. Le fichier est créé en `0644`.
+- **Où** : `internal/history/store.go`, `internal/cli/root.go`.
+- **Fait quand** : on stocke le chemin **non résolu** ou on masque les paramètres sensibles (`token`, `key`, `secret`, `password`…), et les fichiers de `.apix/` sont créés en `0600`.
 
-**Configuration auth dans apix.yaml**
-```yaml
-auth:
-  type: bearer
-  token_path: data.token        # où trouver le token
-  header_name: Authorization    # quel header utiliser
-  header_format: "Bearer ${TOKEN}"  # format du header
-  login_request: login          # requête sauvegardée pour auto-login
-```
+### 🟡 P2 — `--insecure` sans avertissement
+- **Fait quand** : un avertissement jaune s'affiche quand la validation TLS est désactivée (sauf en `--silent`).
 
-**Auto refresh**
-- Détecte les réponses 401 Unauthorized
-- Si `login_request` est configuré, relance automatiquement le login
-- Recapture le token et re-tente la requête originale
-- Affiche `✓ Token expired, re-authenticated automatically`
+### 🟡 P2 — Téléchargement de spec OpenAPI
+- **Où** : `internal/interop/openapi/import.go` (`readSource`).
+- **Fait quand** : le téléchargement respecte `--proxy`, `--insecure` et les en-têtes d'auth du projet (specs protégées), et la taille maximale est documentée.
 
 ---
 
-## Tier 4 — Collections (organisation des requêtes)
+## 3. Fonctionnalités prévues mais pas encore implémentées
 
-**Sauvegarder des requêtes**
-- `apix save <name>` — sauvegarde la dernière requête exécutée
-- `apix save <name> --from-last` — explicitement depuis la dernière requête
-- Sauvegarde dans `requests/<name>.yaml`
+(reprises de l'ancienne spec v0.1.0)
 
-**Format d'une requête sauvegardée**
-```yaml
-name: create-user
-method: POST
-path: /users
-headers:
-  X-Custom: value
-body:
-  name: John Doe
-  email: john@example.com
-  role: admin
-```
+### 🟠 P1 — Opérateurs d'assertion manquants
+- **Où** : `internal/tester/assertions.go`.
+- **À ajouter** : `not_exists`, `neq`, `starts_with`, `ends_with`, `matches` (regex).
+- **À ajouter aussi** : la syntaxe courte de la spec (`body.data.token: exists`, `headers.content-type: contains "application/json"`, `response_time: lt 500ms`).
+- **Fait quand** : chaque opérateur a son test et la liste du README est à jour.
 
-**Exécuter des requêtes sauvegardées**
-- `apix run <name>` — exécute une requête sauvegardée
-- `apix run <name> --var email=new@test.com` — override de variables
-- `apix run <name> --env staging` — override d'environnement pour cette exécution
+### 🟠 P1 — Variables intégrées manquantes
+- **Où** : `internal/request/variables.go` (`BuildVariableMap`).
+- **À ajouter** : `${ISO_DATE}` (ISO 8601) et `${RANDOM_EMAIL}` (ex. `user-3f9a2c1b@example.com`).
+- **Fait quand** : les variables sont documentées dans le tableau du README et testées.
 
-**Lister et gérer les requêtes**
-- `apix list` — liste toutes les requêtes sauvegardées
-- `apix show <name>` — affiche le contenu d'une requête sans l'exécuter
-- `apix delete <name>` — supprime une requête sauvegardée
-- `apix rename <old> <new>` — renomme une requête
+### 🟡 P2 — Hooks : `pre_request` conditionnel
+- **Spec** : « exécute login avant si pas de token ».
+- **Fait quand** : un hook peut porter `if_missing: TOKEN` (ou une syntaxe équivalente) et n'est exécuté que si la variable est absente.
 
-**Chain requests (exécution séquentielle)**
-- `apix chain <req1> <req2> <req3>` — exécute plusieurs requêtes en séquence
-- Les variables capturées se propagent d'une requête à la suivante
-- Capture de variables entre requêtes :
-
-```yaml
-# requests/login.yaml
-name: login
-method: POST
-path: /login
-body:
-  email: ${ADMIN_EMAIL}
-  password: ${ADMIN_PASS}
-capture:
-  TOKEN: data.token
-  USER_ID: data.user.id
-
-# requests/get-profile.yaml
-name: get-profile
-method: GET
-path: /users/${USER_ID}
-# USER_ID est automatiquement disponible depuis le login
-```
+### 🟡 P2 — Export Insomnia et OpenAPI
+- **Fait quand** : `apix export insomnia` et `apix export openapi` produisent des fichiers valides qu'on peut réimporter (test aller-retour).
 
 ---
 
-## Tier 5 — Testing et validation
+## 4. Universalité : prochaines étapes
 
-**Assertions dans les requêtes**
-```yaml
-name: test-login
-method: POST
-path: /login
-body:
-  email: test@test.com
-  password: "123456"
-expect:
-  status: 200
-  body.data.token: exists
-  body.data.user.email: "test@test.com"
-  body.data.user.id: is_number
-  headers.content-type: contains "application/json"
-  response_time: lt 500ms
-```
+### 🟠 P1 — Import OpenAPI : couverture incomplète
+- **Où** : `internal/interop/openapi/import.go`.
+- **À faire** :
+  - [ ] `$ref` vers des fichiers externes (`./schemas/user.yaml#/User`)
+  - [ ] bodies `multipart/form-data` et `application/x-www-form-urlencoded`
+  - [ ] schémas de sécurité (`components.securitySchemes`) → proposer la config `auth` adaptée
+  - [ ] option `--tag <tag>` pour n'importer qu'une partie de l'API
+  - [ ] option `--overwrite` / `--skip-existing` pour la réimportation (aujourd'hui des doublons `-2` sont créés)
+  - [ ] ranger les requêtes dans des sous-dossiers par tag (`requests/users/…`)
+- **Fait quand** : chaque point a son test, et réimporter une spec mise à jour ne duplique rien.
 
-**Opérateurs d'assertion disponibles**
-- `exists` — le champ existe
-- `not_exists` — le champ n'existe pas
-- `eq` / `=` — égalité exacte
-- `neq` / `!=` — différent de
-- `contains` — contient la sous-chaîne
-- `starts_with` — commence par
-- `ends_with` — finit par
-- `matches` — regex match
-- `is_number` — est un nombre
-- `is_string` — est une string
-- `is_array` — est un tableau
-- `is_bool` — est un booléen
-- `is_null` — est null
-- `gt`, `gte`, `lt`, `lte` — comparaisons numériques
-- `length` — longueur d'un array ou string
+### 🟠 P1 — Sous-dossiers dans `requests/`
+- **Problème** : `ListSaved`, `Load` et `apix test` ne lisent que le premier niveau. Les grandes APIs ont besoin d'une arborescence.
+- **Fait quand** : `apix run users/create` fonctionne, `apix list` affiche l'arbre, et `apix test users/` lance un sous-ensemble.
 
-**Mode test**
-- `apix test` — exécute toutes les requêtes qui ont un bloc `expect`
-- `apix test <name>` — exécute un test spécifique
-- `apix test --dir tests/` — exécute tous les tests d'un dossier
-- Affiche un résumé : passed, failed, total, durée
-- Retourne exit code 0 si tout passe, 1 sinon (pour CI/CD)
+### 🟡 P2 — Détection sans spec en mode « serveur lancé »
+- **Idée** : `apix init --probe` interroge les URLs de spec connues (`/openapi.json`, `/api-json`, `/v3/api-docs`, `/swagger.json`, `/docs/api.json`, `/api/documentation`) sur l'URL de base détectée, et importe la première qui répond.
+- **Fait quand** : cela fonctionne sur FastAPI, NestJS et Spring, et échoue proprement si le serveur est éteint.
 
-**Output du mode test**
-```
-Running 5 tests...
+### 🟡 P2 — Règles de détection définies par l'utilisateur
+- **Idée** : permettre de déclarer un framework maison dans `apix.yaml` (fichiers marqueurs, extensions, regex avec les groupes `method` et `path`).
+- **Fait quand** : un exemple est documenté et testé.
 
-  ✓ login                    200 OK    (142ms)
-  ✓ get-users                200 OK    (89ms)
-  ✗ create-user              422 Error (67ms)
-    → expected status 201, got 422
-    → expected body.id to exist, but was missing
-  ✓ update-user              200 OK    (95ms)
-  ✓ delete-user              204 OK    (71ms)
+### 🟡 P2 — Autres frameworks à détecter
+- [ ] Next.js / Nuxt (routes API basées sur les fichiers : `pages/api`, `app/api/**/route.ts`, `server/api`)
+- [ ] Express Router monté avec préfixe (`app.use('/api', router)`)
+- [ ] Litestar / Starlette, Sanic (Python)
+- [ ] Laravel : lire `php artisan route:list --json` s'il est disponible (plus fiable que les regex)
+- [ ] Django : lire les `include()` pour reconstituer les préfixes
 
-Results: 4 passed, 1 failed, 5 total (464ms)
-```
+### 🟢 P3 — Autres formats d'import
+- [ ] Fichiers `.http` / `.rest` (JetBrains HTTP Client, extension VS Code REST Client)
+- [ ] Collections Bruno (`.bru`)
+- [ ] HAR (export des DevTools du navigateur)
+
+### 🟢 P3 — Autres protocoles
+- [ ] GraphQL (`apix gql <query-file>`, variables, introspection)
+- [ ] WebSocket / SSE (lecture de flux)
+- [ ] gRPC (via réflexion)
 
 ---
 
-## Tier 6 — Developer Experience
+## 5. Expérience développeur (DX)
 
-**Pretty output**
-- JSON indenté et coloré par défaut
-- Status code coloré : vert 2xx, jaune 3xx, rouge 4xx/5xx
-- Temps de réponse affiché
-- Taille de la réponse affichée
+### 🟠 P1 — Messages d'erreur plus guidants
+- Si aucun `apix.yaml` n'est trouvé et que le chemin est relatif : l'URL par défaut `http://localhost:8000/api` est utilisée **silencieusement**. Il faut afficher un conseil : `apix init`, `--base-url` ou `APIX_BASE_URL`.
+- Si une variable reste non résolue dans l'URL, un en-tête ou le body : avertir (`⚠ ${USER_ID} is not defined`) au lieu d'envoyer `${USER_ID}` littéralement.
+- **Fait quand** : les deux cas ont un message et un test.
 
-**Historique**
-- `apix history` — affiche les 20 dernières requêtes exécutées
-- `apix history --limit 50` — plus de résultats
-- `apix history --clear` — efface l'historique
-- Chaque entrée : méthode, path, status, durée, timestamp
+### 🟡 P2 — Autocomplétion dynamique
+- **Problème** : cobra fournit `apix completion`, mais les noms de requêtes et d'environnements ne sont pas complétés.
+- **Fait quand** : `ValidArgsFunction` est défini pour `run`, `show`, `rename`, `chain`, `test`, `watch`, `env use/show/delete/copy`, `export curl`.
 
-**Informations utilitaires**
-- `apix --version` / `-v` — version de l'outil
-- `apix --help` — aide globale
-- `apix <command> --help` — aide par commande
-- `apix config show` — affiche la config active (config + env merged)
-- `apix completion bash/zsh/fish` — génère l'autocomplétion shell
+### 🟡 P2 — Commande `apix doctor`
+- **Idée** : afficher la racine du projet, l'environnement actif, les fichiers `.env` chargés, l'URL de base effective, la présence d'un token, la joignabilité du serveur et les variables non résolues dans les requêtes.
 
-**Import depuis d'autres outils**
-- `apix import postman <file.json>` — importe une collection Postman
-- `apix import insomnia <file.json>` — importe depuis Insomnia
-- `apix import curl <"curl command">` — convertit une commande curl en requête apix
+### 🟡 P2 — Sortie machine
+- [ ] `--json` pour `list`, `history`, `env list` et `config show`
+- [ ] `apix test --reporter junit|json|tap` et `--output report.xml` pour GitHub Actions / GitLab CI
 
-**Export**
-- `apix export curl <name>` — exporte une requête en commande curl
-- `apix export postman` — exporte toutes les requêtes en collection Postman
+### 🟢 P3 — Mode interactif (TUI)
+- Une liste des requêtes filtrable, exécutée avec Entrée. Lib possible : `charmbracelet/bubbletea`.
+
+### 🟢 P3 — Lancer des tests en parallèle
+- **Fait quand** : `apix test --parallel 4` fonctionne et les chaînes à dépendances restent séquentielles.
 
 ---
 
-## Tier 7 — Avancé (v0.2.0+, mais prévoir l'architecture maintenant)
+## 6. Qualité et tests
 
-**Watch mode**
-- `apix watch <name>` — relance la requête à chaque modification du fichier YAML
-- `apix watch <name> --interval 5s` — relance toutes les 5 secondes
-- Utile pour développer et tester en temps réel
-
-**Hooks pre/post request**
-```yaml
-name: create-user
-method: POST
-path: /users
-pre_request:
-  - run: login          # exécute login avant si pas de token
-post_request:
-  - capture:
-      USER_ID: body.id
-```
-
-**Retry et resilience**
-- `--retry 3` — réessaie 3 fois en cas d'erreur réseau
-- `--retry-delay 2s` — délai entre les tentatives
-- Backoff exponentiel automatique
-
-**Proxy support**
-- `--proxy http://localhost:8080` — route via un proxy
-- Utile pour debugging avec Charles/mitmproxy
-
-**TLS/SSL**
-- `--insecure` / `-k` — ignore les erreurs de certificat SSL
-- `--cert <file>` — certificat client
-- `--key <file>` — clé privée client
-
-**Cookie jar**
-- Sauvegarde automatique des cookies entre requêtes
-- `--no-cookies` — désactive le cookie jar
-- Utile pour APIs qui utilisent des sessions
+- [ ] 🟠 P1 : tests unitaires pour `internal/config` (précédence des variables, fichiers dotenv manquants ou invalides, `dotenv: []`) et `internal/project` (`APIX_PROJECT_DIR`, chemins absolus dans `requests_dir`).
+- [ ] 🟠 P1 : tests pour `internal/output` (couleurs désactivées si ce n'est pas un TTY, `NO_COLOR`).
+- [ ] 🟡 P2 : test de bout en bout du binaire (build + `init` + `run` + `test` contre un serveur `httptest`), en complément des tests de package.
+- [ ] 🟡 P2 : activer `golangci-lint` (une cible `make lint` existe déjà) avec une configuration `.golangci.yml` versionnée.
+- [ ] 🟡 P2 : mesurer la couverture (`go test -coverprofile`) et viser plus de 70 % sur `request`, `config`, `detect`, `tester` et `interop`.
+- [ ] 🟢 P3 : fuzzing de `dotenv.Parse`, `openapi.Parse` et `curl.ParseCommand` (`go test -fuzz`).
 
 ---
 
-## Résumé par priorité d'implémentation
+## 7. CI / release
 
-| Priorité | Catégorie | Nb de features | Effort |
-|---|---|---|---|
-| **P0** | Requêtes HTTP de base | 7 méthodes + flags | 2h |
-| **P0** | Pretty output coloré | Status, headers, body, time | 1h |
-| **P0** | Config projet (apix.yaml) | Chargement + merge | 1h |
-| **P1** | Init + environnements | init, env use/list/show/create | 1.5h |
-| **P1** | Variables | Résolution ${VAR} partout | 30min |
-| **P1** | Auto auth capture | Détection token + injection auto | 45min |
-| **P2** | Collections save/run | save, run, list, show, delete | 1h |
-| **P2** | Chain requests + capture | Exécution séquentielle + propagation vars | 1h |
-| **P3** | Test assertions | expect block + apix test + exit codes | 2h |
-| **P3** | Historique | history + clear | 30min |
-| **P4** | Import/Export | Postman, Insomnia, curl | 2h |
-| **P4** | Auto refresh 401 | Détection 401 + re-login auto | 1h |
-| **P5** | Watch mode, hooks, retry, proxy, TLS, cookies | Features avancées | v0.2.0+ |
+- [ ] 🔴 P0 : ajouter un workflow `.github/workflows/ci.yml` (seul `release.yaml` existe) qui lance `go vet`, `go test ./...` et `golangci-lint` sur chaque PR, sous Linux, macOS et Windows.
+- [ ] 🟠 P1 : vérifier que tout fonctionne sous **Windows** : séparateurs de chemins dans `project.Root`, `filepath.Glob`, détection TTY et couleurs, `install.sh` non applicable (documenter Scoop / winget ou l'archive `.zip`).
+- [ ] 🟡 P2 : publier une image Docker (`ghcr.io/tresor-kasenda/apix`) pour la CI.
+- [ ] 🟡 P2 : fournir une GitHub Action réutilisable (`uses: tresor-kasenda/apix-action@v1` avec `apix test`).
+- [ ] 🟡 P2 : générer le CHANGELOG automatiquement à partir des commits conventionnels (goreleaser `changelog`).
+- [ ] 🟢 P3 : paquets Scoop (Windows), AUR (Arch) et `.deb` / `.rpm` via goreleaser `nfpms`.
 
-**P0 + P1 = MVP minimal** (~6h) — suffisant pour une première release et première vidéo YouTube.
+---
 
-**P0 + P1 + P2 + P3 = v0.1.0 complète** (~12h) — suffisant pour que les gens adoptent l'outil au quotidien.
+## 8. Documentation
+
+- [ ] 🟠 P1 : le README (plus de 600 lignes) est trop long. Le découper en `docs/` (installation, configuration, variables, auth, tests, import/export, CI), avec un site généré (MkDocs Material ou Docusaurus).
+- [ ] 🟠 P1 : ajouter un exemple complet par stack dans `examples/` : Laravel, Django/DRF, FastAPI, NestJS, Spring Boot, Go, avec `apix.yaml`, `requests/` et `env/` prêts à l'emploi.
+- [ ] 🟡 P2 : ajouter un guide de migration depuis Postman / Insomnia / fichiers `.http`.
+- [ ] 🟡 P2 : ajouter `CONTRIBUTING.md` (architecture des packages, comment ajouter un framework à la détection, conventions de commit).
+- [ ] 🟡 P2 : générer la référence des commandes automatiquement (`cobra/doc` → `docs/commands/*.md`) pour éviter que le tableau du README se désynchronise.
+- [ ] 🟢 P3 : ajouter un GIF ou une vidéo asciinema en haut du README.
+
+---
+
+## 9. Contenu (YouTube / LinkedIn)
+
+- [ ] Vidéo « De zéro à des tests d'API en CI en 5 minutes » : `apix init --spec` → `apix test` → GitHub Actions.
+- [ ] Série « apix avec votre stack » : un épisode court par framework (Laravel, FastAPI, NestJS, Spring).
+- [ ] Post LinkedIn « Pourquoi versionner ses requêtes API avec Git plutôt que dans Postman ».
+- [ ] Post technique sur l'architecture : découverte de la racine façon `git`, précédence des variables, import OpenAPI.
+
+---
+
+## ✅ Déjà fait (pour mémoire)
+
+- [x] Requêtes HTTP (GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS), bodies JSON, fichier, multipart et urlencoded
+- [x] Options d'affichage (`-v`, `--raw`, `--headers-only`, `--body-only`, `-s`, `-o`)
+- [x] `apix init`, environnements (`use/list/show/create/delete/copy`), variables
+- [x] Auth `bearer/basic/api_key/custom`, capture automatique du token, re-login sur 401
+- [x] Requêtes sauvegardées (`save/run/list/show/rename/delete`), `chain` et `capture`
+- [x] Assertions et `apix test` (code de sortie CI), historique, `config show`
+- [x] Import Postman / Insomnia / curl, export curl / Postman
+- [x] Watch mode, hooks `pre_request` / `post_request`, retry, proxy, TLS, cookie jar
+- [x] **Universalité** : découverte de la racine du projet, `requests_dir` / `env_dir`, fichiers `.env`, `${VAR:-défaut}`, variables de l'OS, `APIX_ENV` / `APIX_BASE_URL` / `APIX_PROJECT_DIR`
+- [x] Import OpenAPI 3 / Swagger 2 (fichier ou URL), `init` non interactif, détection monorepo, URL de base déduite du `.env`, plus de 30 frameworks
+- [x] Correction : `env/dev.yaml` n'écrase plus le `base_url` choisi à l'init
