@@ -3,21 +3,40 @@ package request
 import (
 	"crypto/rand"
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
-var varPattern = regexp.MustCompile(`\$\{(\w+)\}`)
+// varPattern matches ${NAME} and ${NAME:-default}.
+var varPattern = regexp.MustCompile(`\$\{(\w+)(?::-([^}]*))?\}`)
 
+// ResolveVariables substitutes ${NAME} placeholders. Lookup order: vars, then
+// the OS environment, then the inline default (${NAME:-default}). Unknown
+// placeholders without a default are left untouched.
 func ResolveVariables(input string, vars map[string]string) string {
 	return varPattern.ReplaceAllStringFunc(input, func(match string) string {
-		key := varPattern.FindStringSubmatch(match)[1]
+		groups := varPattern.FindStringSubmatch(match)
+		key := groups[1]
 		if val, ok := vars[key]; ok {
 			return val
 		}
+		if val, ok := os.LookupEnv(key); ok {
+			return val
+		}
+		if strings.Contains(match, ":-") {
+			return groups[2]
+		}
 		return match
 	})
+}
+
+// HasUnresolvedVariables reports whether input still contains a ${NAME}
+// placeholder after resolution.
+func HasUnresolvedVariables(input string) bool {
+	return varPattern.MatchString(input)
 }
 
 func BuildVariableMap(envVars map[string]string, token string, flagVars map[string]string) map[string]string {

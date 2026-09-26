@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -40,6 +41,28 @@ func (r *Response) IsJSON() bool {
 	return strings.Contains(ct, "application/json") || json.Valid(r.Body)
 }
 
+// ExtractFirst tries each "|"-separated path in order and returns the first
+// non-empty value, e.g. "access_token|token|data.token". This lets a single
+// config work across APIs that name their token field differently.
+func (r *Response) ExtractFirst(paths string) (string, error) {
+	var lastErr error
+	for _, path := range strings.Split(paths, "|") {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		value, err := r.ExtractField(path)
+		if err == nil && value != "" {
+			return value, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no value found for %q", paths)
+	}
+	return "", lastErr
+}
+
 func (r *Response) ExtractField(path string) (string, error) {
 	if len(r.Body) == 0 {
 		return "", fmt.Errorf("empty response body")
@@ -54,13 +77,21 @@ func (r *Response) ExtractField(path string) (string, error) {
 	current := obj
 
 	for _, part := range parts {
-		m, ok := current.(map[string]interface{})
-		if !ok {
+		switch node := current.(type) {
+		case map[string]interface{}:
+			next, ok := node[part]
+			if !ok {
+				return "", fmt.Errorf("field %q not found in path %q", part, path)
+			}
+			current = next
+		case []interface{}:
+			idx, err := strconv.Atoi(part)
+			if err != nil || idx < 0 || idx >= len(node) {
+				return "", fmt.Errorf("invalid array index %q in path %q", part, path)
+			}
+			current = node[idx]
+		default:
 			return "", fmt.Errorf("cannot navigate path %q: not an object at %q", path, part)
-		}
-		current, ok = m[part]
-		if !ok {
-			return "", fmt.Errorf("field %q not found in path %q", part, path)
 		}
 	}
 

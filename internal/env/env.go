@@ -1,7 +1,9 @@
 package env
 
 import (
+	"bytes"
 	"fmt"
+	"github.com/Tresor-Kasend/apix/internal/project"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,7 +45,7 @@ func Load(name string) (*EnvConfig, error) {
 }
 
 func List() ([]string, error) {
-	entries, err := os.ReadDir("env")
+	entries, err := os.ReadDir(project.EnvDir())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -65,7 +67,7 @@ func List() ([]string, error) {
 }
 
 func Create(name string) error {
-	if err := os.MkdirAll("env", 0o755); err != nil {
+	if err := os.MkdirAll(project.EnvDir(), 0o755); err != nil {
 		return fmt.Errorf("creating env directory: %w", err)
 	}
 
@@ -74,22 +76,26 @@ func Create(name string) error {
 		return fmt.Errorf("environment %q already exists", name)
 	}
 
-	cfg := EnvConfig{
-		BaseURL:   "http://localhost:8000/api",
-		Headers:   map[string]string{},
-		Variables: map[string]string{},
-	}
-
-	data, err := yaml.Marshal(&cfg)
-	if err != nil {
-		return fmt.Errorf("marshaling environment: %w", err)
-	}
+	// Every key is optional: an empty environment inherits everything from
+	// apix.yaml, so creating one never silently overrides the project base_url.
+	data := []byte(newEnvTemplate)
 
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("writing environment file: %w", err)
 	}
 	return nil
 }
+
+const newEnvTemplate = `# Environment overrides. Every key is optional and falls back to apix.yaml.
+# Values may reference variables: ${VAR} or ${VAR:-default}.
+#
+# base_url: https://staging.example.com
+# headers:
+#   X-Debug: "true"
+# auth:
+#   token: ${STAGING_TOKEN}
+variables: {}
+`
 
 func Copy(source, dest string) error {
 	sourcePath := envFilePath(source)
@@ -104,7 +110,7 @@ func Copy(source, dest string) error {
 		return fmt.Errorf("reading source environment %q: %w", source, err)
 	}
 
-	if err := os.MkdirAll("env", 0o755); err != nil {
+	if err := os.MkdirAll(project.EnvDir(), 0o755); err != nil {
 		return fmt.Errorf("creating env directory: %w", err)
 	}
 
@@ -156,31 +162,51 @@ func Show(name string) (string, error) {
 }
 
 func envFilePath(name string) string {
-	return filepath.Join("env", name+".yaml")
+	return filepath.Join(project.EnvDir(), name+".yaml")
 }
 
-func updateApixYAMLField(key string, value interface{}) error {
-	data, err := os.ReadFile("apix.yaml")
+// updateApixYAMLField sets a top-level key in apix.yaml while preserving the
+// file's comments and key order.
+func updateApixYAMLField(key string, value string) error {
+	data, err := os.ReadFile(project.ConfigFile())
 	if err != nil {
 		return fmt.Errorf("reading apix.yaml: %w", err)
 	}
 
-	var doc map[string]interface{}
+	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return fmt.Errorf("parsing apix.yaml: %w", err)
 	}
-
-	if doc == nil {
-		doc = make(map[string]interface{})
+	if len(doc.Content) == 0 {
+		doc = yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{{Kind: yaml.MappingNode, Tag: "!!map"}}}
 	}
-	doc[key] = value
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return fmt.Errorf("parsing apix.yaml: top level must be a mapping")
+	}
 
-	out, err := yaml.Marshal(doc)
-	if err != nil {
+	updated := false
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == key {
+			root.Content[i+1] = &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value}
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		root.Content = append(root.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
+			&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value},
+		)
+	}
+
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(&doc); err != nil {
 		return fmt.Errorf("marshaling apix.yaml: %w", err)
 	}
-
-	if err := os.WriteFile("apix.yaml", out, 0o644); err != nil {
+	if err := os.WriteFile(project.ConfigFile(), buf.Bytes(), 0o644); err != nil {
 		return fmt.Errorf("writing apix.yaml: %w", err)
 	}
 	return nil

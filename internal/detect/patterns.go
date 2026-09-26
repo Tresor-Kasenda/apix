@@ -117,6 +117,56 @@ var axumPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\.route\(\s*"(?P<path>[^"]+)"\s*,\s*(?P<method>get|post|put|patch|delete)`),
 }
 
+// AdonisJS
+var adonisPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?:Route|router)\.(?P<method>get|post|put|patch|delete)\(\s*['"](?P<path>[^'"]+)['"]`),
+}
+
+// Go net/http (Go 1.22+ method patterns) and Gorilla Mux
+var goStdlibPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\.HandleFunc\(\s*"(?:(?P<method>GET|POST|PUT|PATCH|DELETE)\s+)?(?P<path>/[^"]*)"`),
+	regexp.MustCompile(`\.Handle\(\s*"(?:(?P<method>GET|POST|PUT|PATCH|DELETE)\s+)?(?P<path>/[^"]*)"`),
+}
+
+// Quarkus / JAX-RS
+var jaxrsPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`@Path\(\s*"(?P<path>[^"]+)"`),
+}
+
+// Micronaut
+var micronautPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`@(?P<method>Get|Post|Put|Patch|Delete)\(\s*(?:value\s*=\s*|uri\s*=\s*)?"(?P<path>[^"]+)"`),
+	regexp.MustCompile(`@Controller\(\s*"(?P<path>[^"]+)"`),
+}
+
+// Ktor
+var ktorPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\b(?P<method>get|post|put|patch|delete)\(\s*"(?P<path>/[^"]*)"\s*\)`),
+	regexp.MustCompile(`\broute\(\s*"(?P<path>/[^"]*)"\s*\)`),
+}
+
+// ASP.NET Core (controllers + minimal APIs)
+var aspnetPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\[Http(?P<method>Get|Post|Put|Patch|Delete)\(\s*"(?P<path>[^"]+)"`),
+	regexp.MustCompile(`\.Map(?P<method>Get|Post|Put|Patch|Delete)\(\s*"(?P<path>[^"]+)"`),
+	regexp.MustCompile(`\[Route\(\s*"(?P<path>[^"]+)"`),
+}
+
+// Phoenix
+var phoenixPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?m)^\s*(?P<method>get|post|put|patch|delete)\s+"(?P<path>[^"]+)"`),
+}
+
+// Vapor
+var vaporPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`\w+\.(?P<method>get|post|put|patch|delete)\(\s*"(?P<path>[^"]+)"`),
+}
+
+// Sinatra
+var sinatraPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?m)^\s*(?P<method>get|post|put|patch|delete)\s+['"](?P<path>[^'"]+)['"]`),
+}
+
 func scanConfigFor(fw *Framework) scanConfig {
 	switch fw.Name {
 	case "Django":
@@ -125,7 +175,7 @@ func scanConfigFor(fw *Framework) scanConfig {
 		return scanConfig{fileExts: []string{".py"}, patterns: fastapiPatterns}
 	case "Flask":
 		return scanConfig{fileExts: []string{".py"}, patterns: flaskPatterns}
-	case "Express.js", "Fastify":
+	case "Express.js", "Fastify", "Koa", "Hono":
 		return scanConfig{fileExts: []string{".js", ".ts", ".mjs"}, patterns: expressPatterns}
 	case "NestJS":
 		return scanConfig{fileExts: []string{".ts"}, patterns: nestPatterns}
@@ -159,6 +209,24 @@ func scanConfigFor(fw *Framework) scanConfig {
 		return scanConfig{fileExts: []string{".rs"}, patterns: rustAttrPatterns}
 	case "Axum":
 		return scanConfig{fileExts: []string{".rs"}, patterns: axumPatterns}
+	case "AdonisJS":
+		return scanConfig{fileExts: []string{".ts", ".js"}, patterns: adonisPatterns}
+	case "Gorilla Mux", "Go net/http":
+		return scanConfig{fileExts: []string{".go"}, patterns: goStdlibPatterns}
+	case "Quarkus":
+		return scanConfig{fileExts: []string{".java", ".kt"}, patterns: jaxrsPatterns}
+	case "Micronaut":
+		return scanConfig{fileExts: []string{".java", ".kt"}, patterns: micronautPatterns}
+	case "Ktor":
+		return scanConfig{fileExts: []string{".kt"}, patterns: ktorPatterns}
+	case "ASP.NET Core":
+		return scanConfig{fileExts: []string{".cs"}, patterns: aspnetPatterns}
+	case "Phoenix":
+		return scanConfig{fileExts: []string{".ex"}, patterns: phoenixPatterns}
+	case "Vapor":
+		return scanConfig{fileExts: []string{".swift"}, patterns: vaporPatterns}
+	case "Sinatra":
+		return scanConfig{fileExts: []string{".rb"}, patterns: sinatraPatterns}
 	default:
 		return scanConfig{}
 	}

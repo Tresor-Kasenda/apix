@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"github.com/Tresor-Kasend/apix/internal/project"
 	"io"
 	"net/url"
 	"os"
@@ -126,7 +127,8 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 		headers[k] = v
 	}
 
-	vars := request.BuildVariableMap(cfg.Variables, cfg.Auth.Token, opts.Vars)
+	vars := request.BuildVariableMap(cfg.VariableMap(), cfg.Auth.Token, opts.Vars)
+	resolveAuthCredentials(&cfg.Auth, vars)
 
 	urlStr = request.ResolveVariables(urlStr, vars)
 	for k, v := range headers {
@@ -165,7 +167,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 			CertFile:      opts.CertFile,
 			KeyFile:       opts.KeyFile,
 			NoCookies:     opts.NoCookies,
-			CookieJarPath: filepath.Join(".apix", "cookies.jar"),
+			CookieJarPath: project.StatePath("cookies.jar"),
 		},
 	})
 
@@ -247,7 +249,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 	shouldPrintBody := !opts.SuppressOutput && !opts.HeadersOnly && !strings.EqualFold(method, "HEAD") && opts.OutputFile == ""
 
 	if shouldPrintStatus {
-		output.PrintStatus(method, path, resp.StatusCode, resp.Status, resp.Duration, len(resp.Body))
+		output.PrintStatus(method, request.ResolveVariables(path, vars), resp.StatusCode, resp.Status, resp.Duration, len(resp.Body))
 	}
 	if shouldPrintHeaders {
 		output.PrintHeaders(resp.Headers)
@@ -261,7 +263,7 @@ func executeFromOptionsInternal(method, path string, opts ExecuteOptions, alread
 	}
 
 	if cfg.Auth.TokenPath != "" {
-		if token, tokenErr := resp.ExtractField(cfg.Auth.TokenPath); tokenErr == nil && token != "" {
+		if token, tokenErr := resp.ExtractFirst(cfg.Auth.TokenPath); tokenErr == nil && token != "" {
 			if saveErr := config.SaveToken(token); saveErr == nil && !opts.Silent && !opts.BodyOnly && !opts.HeadersOnly {
 				output.PrintTokenCaptured()
 			}
@@ -553,6 +555,24 @@ func writeOutputFile(path string, body []byte) error {
 		return fmt.Errorf("writing output file %q: %w", path, err)
 	}
 	return nil
+}
+
+// resolveAuthCredentials expands ${VAR} placeholders in credentials so secrets
+// can live in .env files or CI environment variables instead of apix.yaml.
+// A credential whose variable is undefined is cleared rather than sent as a
+// literal "${VAR}" string.
+func resolveAuthCredentials(auth *config.AuthConfig, vars map[string]string) {
+	resolve := func(value string) string {
+		resolved := request.ResolveVariables(value, vars)
+		if request.HasUnresolvedVariables(resolved) {
+			return ""
+		}
+		return resolved
+	}
+	auth.Token = resolve(auth.Token)
+	auth.Username = resolve(auth.Username)
+	auth.Password = resolve(auth.Password)
+	auth.APIKey = resolve(auth.APIKey)
 }
 
 func hasHeader(headers map[string]string, key string) bool {

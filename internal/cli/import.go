@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/Tresor-Kasend/apix/internal/project"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -9,6 +10,7 @@ import (
 
 	interopcurl "github.com/Tresor-Kasend/apix/internal/interop/curl"
 	interopinsomnia "github.com/Tresor-Kasend/apix/internal/interop/insomnia"
+	interopopenapi "github.com/Tresor-Kasend/apix/internal/interop/openapi"
 	interoppostman "github.com/Tresor-Kasend/apix/internal/interop/postman"
 	"github.com/Tresor-Kasend/apix/internal/output"
 	"github.com/Tresor-Kasend/apix/internal/request"
@@ -21,14 +23,62 @@ func newImportCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import",
 		Short: "Import requests from external formats",
-		Long:  "Import request definitions from Postman, Insomnia, or a curl command.",
+		Long:  "Import request definitions from OpenAPI/Swagger, Postman, Insomnia, or a curl command.",
 	}
 
 	cmd.AddCommand(
+		newImportOpenAPICmd(),
 		newImportPostmanCmd(),
 		newImportInsomniaCmd(),
 		newImportCurlCmd(),
 	)
+	return cmd
+}
+
+func newImportOpenAPICmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "openapi <file-or-url>",
+		Aliases: []string{"swagger"},
+		Short:   "Import requests from an OpenAPI 3 / Swagger 2 specification",
+		Long: `Import every operation of an OpenAPI 3.x or Swagger 2.0 document (JSON or YAML).
+
+The source can be a local file or an http(s) URL, which works with any stack
+that serves its spec (FastAPI /openapi.json, NestJS /api-json, Spring
+/v3/api-docs, Laravel Scribe/L5-Swagger, Django REST, ASP.NET, Go swag, ...).
+
+Path parameters become variables: /users/{id} is saved as /users/${id}.`,
+		Example: `  apix import openapi openapi.yaml
+  apix import openapi http://localhost:8000/openapi.json
+  apix import openapi swagger.json --with-base-path`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			withBasePath, _ := cmd.Flags().GetBool("with-base-path")
+			result, err := interopopenapi.ParseSource(args[0], interopopenapi.Options{IncludeBasePath: withBasePath})
+			if err != nil {
+				return err
+			}
+			count, err := saveImportedRequests(result.Requests)
+			if err != nil {
+				return err
+			}
+
+			label := "OpenAPI"
+			if result.Title != "" {
+				label = fmt.Sprintf("%q", result.Title)
+			}
+			output.PrintSuccess(fmt.Sprintf("Imported %d request(s) from %s", count, label))
+			if result.Server != "" {
+				hint := fmt.Sprintf("Spec server: %s — make sure base_url in apix.yaml points to it", result.Server)
+				if withBasePath {
+					hint = fmt.Sprintf("Spec server: %s — paths include %q, so base_url should be the host root", result.Server, result.BasePath)
+				}
+				output.PrintInfo(hint)
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().Bool("with-base-path", false, "Prefix request paths with the spec server base path (e.g. /api/v1)")
 	return cmd
 }
 
@@ -106,7 +156,7 @@ func saveImportedRequests(imported []request.SavedRequest) (int, error) {
 		return 0, fmt.Errorf("no importable requests found")
 	}
 
-	if err := os.MkdirAll("requests", 0o755); err != nil {
+	if err := os.MkdirAll(project.RequestsDir(), 0o755); err != nil {
 		return 0, fmt.Errorf("creating requests directory: %w", err)
 	}
 
@@ -184,7 +234,7 @@ func uniqueRequestName(base string, used map[string]int) string {
 			candidate = fmt.Sprintf("%s-%d", base, next+1)
 		}
 
-		if _, err := os.Stat(filepath.Join("requests", candidate+".yaml")); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(project.RequestsDir(), candidate+".yaml")); os.IsNotExist(err) {
 			used[base] = next + 1
 			return candidate
 		}
